@@ -1,0 +1,956 @@
+:root {
+    --bg-main: #000000;
+    --bg-glass: rgba(20, 20, 20, 0.6); 
+    --bg-sidebar-dark: rgba(0, 0, 0, 0.95);
+    --bg-user-tint: rgba(255, 255, 255, 0.12); 
+    --border-glass: rgba(255, 255, 255, 0.1);
+    --border-glass-highlight: rgba(255, 255, 255, 0.25); 
+    --neon-blue: #ffffff;
+    --neon-pink: #d9d9d9;
+    --neon-green: #f0f0f0;
+    --text-main: #ffffff;
+    --text-dim: #b8b8b8;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100dvh; /* Changed from 100vh to 100dvh */
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: 'Times New Roman', Times, serif;
+    background: #000000; /* Fallback color */
+
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    color: var(--text-main);
+    filter: grayscale(100%);
+}
+#preloader {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #020617; /* Solid dark background */
+    z-index: 999999; /* Highest priority */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+
+/* Class added by JS to fade it out */
+#preloader.loaded {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.loader-content { text-align: center; animation: fadeUp 1s ease-out; }
+
+.loader-circle {
+    width: 60px; height: 60px;
+    border: 4px solid rgba(0, 229, 255, 0.2);
+    border-top: 4px solid var(--neon-blue);
+    border-radius: 50%;
+    margin: 0 auto 20px auto;
+    animation: spin 1s linear infinite;
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
+}
+
+.loader-text {
+    font-size: 1.5rem; font-weight: bold; color: white;
+    letter-spacing: 2px; text-shadow: 0 0 10px var(--neon-blue);
+}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+/* =========================================
+   SIDEBAR (Animated Physics)
+   ========================================= */
+
+/* 2. Push Input Box Up (Safe Area Fix) */
+.controls-container {
+    width: 100%;
+    /* This padding pushes it up above the iPhone/Android home bar */
+    padding: 10px 20px calc(20px + env(safe-area-inset-bottom)) 20px;
+    display: flex;
+    justify-content: center;
+    background: transparent;
+    z-index: 100;
+    flex-shrink: 0;
+    position: relative; /* Ensure it sits on top */
+}
+
+.app-container {
+    display: flex;
+    /* Use 'dvh' so it resizes when keyboard opens */
+    height: 100dvh; 
+    width: 100vw;
+    overflow: hidden; /* Stop the whole page from scrolling */
+}
+
+
+.sidebar {
+    width: 280px;
+    background: var(--bg-sidebar-dark);
+    
+    /* GLASS EFFECT */
+    backdrop-filter: blur(50px);
+    -webkit-backdrop-filter: blur(50px);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    
+    /* LAYOUT */
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    flex-shrink: 0;
+    z-index: 2000;
+    
+    /* ✨ DESKTOP SMOOTH ANIMATION FIX ✨ */
+    /* We explicitly animate margin-left for desktop */
+    transition: 
+        margin-left 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.5s ease,
+        box-shadow 0.5s ease;
+        
+    /* Default State (Visible on Desktop) */
+    margin-left: 0;
+    opacity: 1;
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+}
+/* Desktop Hidden State */
+.sidebar.hidden {
+    margin-left: -280px; /* Slides off-screen */
+    opacity: 0;          /* Fades out */
+    pointer-events: none; /* Prevents clicking when hidden */
+}
+
+.sidebar-header {
+    padding: 20px;
+    position: relative; /* Important: Allows absolute positioning inside */
+}
+
+.sidebar-brand {
+    font-size: 1.8rem;
+    font-family: cursive;
+    font-weight: 800;
+    color: white;
+    text-align: center;
+    margin-bottom: 20px;
+    letter-spacing: 1.5px;
+    text-shadow: 
+        0 0 10px rgba(0, 229, 255, 0.5),
+        0 0 20px rgba(0, 229, 255, 0.3);
+    background: linear-gradient(90deg, #fff, var(--neon-blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.sidebar-top-row {
+    margin-top: 10px;
+    width: 100%;
+    /* Since close button is moved, New Chat can take full width */
+    display: block; 
+}
+
+.close-sidebar-btn {
+    position: absolute;
+    top: 20px;       /* Distance from top */
+    right: 15px;     /* Distance from right */
+    
+    background: transparent;
+    border: none;
+    color: var(--text-dim); /* Grey color */
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    z-index: 10;
+    transition: all 0.2s ease;
+    
+    /* Remove borders if previous CSS had them */
+    border: 1px solid transparent; 
+}
+
+
+.new-chat-btn {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    color: var(--neon-blue);
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+    transition: all 0.3s ease;
+}
+
+.new-chat-btn:hover {
+    background: rgba(0, 229, 255, 0.1);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+    border-color: var(--neon-blue);
+}
+
+.chat-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.chat-list::-webkit-scrollbar { display: none; }
+
+.chat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    background: transparent;
+}
+
+.chat-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: white;
+}
+
+.chat-item.active {
+    background: linear-gradient(90deg, rgba(0, 229, 255, 0.05), transparent);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    color: var(--neon-blue);
+}
+
+.chat-name-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    margin-right: 10px;
+}
+.chat-name-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    width: 100%;
+    pointer-events: none;
+}
+.chat-rename-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--neon-blue);
+    color: white;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 0.95rem;
+    outline: none;
+    font-family: inherit;
+}
+.chat-actions { display: flex; gap: 5px; z-index: 10; }
+.chat-item.editing .chat-actions { display: none; }
+.chat-actions button {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 4px;
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+.chat-actions button:hover { opacity: 1; color: var(--neon-pink); }
+
+/* =========================================
+   MAIN CONTENT
+   ========================================= */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.brand-header {
+    text-align: center;
+    padding: 15px 0;
+    font-size: 2rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    background: linear-gradient(180deg, #ffffff, var(--neon-blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 15px rgba(0, 229, 255, 0.6));
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 10;
+}
+
+.menu-toggle {
+    display: none;
+    position: absolute;
+    left: 20px;
+    background: transparent;
+    border: none;
+    color: var(--neon-blue);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+#chat-box {
+    flex: 1;
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scroll-behavior: smooth;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+#chat-box::-webkit-scrollbar { display: none; }
+
+.message {
+    padding: 16px 24px;
+    border-radius: 20px;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    animation: fadeIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-width: 80%;
+    width: fit-content;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    backdrop-filter: blur(5px); 
+    -webkit-backdrop-filter: blur(5px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.5), 0 5px 15px rgba(0,0,0,0.3); 
+    transform: translateZ(0);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.message:hover { transform: translateY(-5px) scale(1.01); z-index: 5; }
+
+.user {
+    align-self: flex-end;
+    margin-left: auto;
+    background: linear-gradient(135deg, rgba(0, 97, 255, 0.1), rgba(0, 229, 255, 0.1));
+    border: 1px solid rgba(0, 229, 255, 0.5);
+    border-bottom-right-radius: 4px;
+}
+
+.model {
+    align-self: flex-start;
+    margin-right: auto;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e2e8f0;
+    border-bottom-left-radius: 4px;
+}
+
+@keyframes pulse-opacity {
+    0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; }
+}
+.loading-pulse {
+    animation: pulse-opacity 1.5s infinite ease-in-out;
+    color: var(--neon-blue);
+    font-style: italic;
+    box-shadow: none !important;
+    background: transparent !important;
+    border: 1px dashed rgba(0, 229, 255, 0.3);
+}
+
+/* =========================================
+   CONTROLS & INPUTS (Mobile Fixed)
+   ========================================= */
+
+.controls {
+    width: 100%;
+    max-width: 850px;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-glass);
+    border-top: 1px solid var(--border-glass-highlight);
+    border-radius: 24px;
+    padding: 10px 15px;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    
+    /* ✨ ADD THIS LINE for smooth glow animation ✨ */
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.controls:focus-within {
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 25px rgba(0, 229, 255, 0.4), inset 0 0 10px rgba(0, 229, 255, 0.1);
+}
+textarea {
+    flex: 1;
+    background: transparent;
+    color: white;
+    font-size: 1rem;
+    border: none;
+    outline: none;
+    padding: 12px;
+    resize: none;
+    max-height: 150px;
+    font-family: inherit;
+    line-height: 1.4;
+}
+
+#send-btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, var(--neon-pink), #b02bf5);
+    color: white;
+    border: none;
+    border-radius: 18px;
+    cursor: pointer;
+    font-weight: 700;
+    margin-bottom: 2px;
+}
+
+.icon-btn {
+    background: transparent;
+    font-size: 1.5rem;
+    padding: 8px;
+    border-radius: 50%;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+}
+.icon-btn:hover { color: var(--neon-blue); transform: scale(1.1); }
+
+#preview {
+    display: none;
+    width: 45px;
+    height: 45px;
+    border-radius: 10px;
+    object-fit: cover;
+    border: 2px solid var(--neon-green);
+    margin-bottom: 5px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(30px) scale(0.9); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+
+/* =========================================
+   MOBILE RESPONSIVENESS
+   ========================================= */
+@media (max-width: 768px) {
+    /* Fix Sidebar Position & Animation */
+    .sidebar {
+        position: absolute;
+        left: 0; 
+        top: 0;
+        width: 85%; 
+        max-width: 300px;
+        
+        /* Start hidden to the left */
+        transform: translateX(-105%);
+        margin-left: 0 !important; /* Reset desktop margin logic */
+        opacity: 1; /* Keep opacity 1 to prevent flickering */
+        border-right: 1px solid var(--neon-blue);
+    }
+
+    /* Open State */
+    .sidebar.mobile-open { 
+        transform: translateX(0);
+        box-shadow: 0 0 60px rgba(0, 229, 255, 0.4); 
+    }
+
+    /* Show Menu Toggle */
+    .menu-toggle { 
+        display: block !important; 
+        top: 20px; 
+        left: 20px; 
+        z-index: 3000; 
+    }
+
+    /* Adjust Logout Button */
+    .logout-btn { 
+        width: 100%; 
+        padding: 15px; 
+    }
+
+    /* Fix Input Area Safe Zone */
+    .controls-container {
+        padding-bottom: calc(20px + env(safe-area-inset-bottom));
+        background: linear-gradient(to top, #020617 20%, transparent);
+    }
+
+    /* Adjust Header */
+    .brand-header { 
+        padding-top: 20px; 
+        font-size: 1.5rem; 
+    }
+}
+/* --- RENAME INPUT FIX --- */
+
+/* 1. Style the input box itself */
+
+/* --- FORCE RENAME BOX VISIBILITY --- */
+.chat-rename-input {
+    width: 100% !important;
+    height: 30px !important;
+    background-color: #1e293b !important; /* Dark Blue background */
+    color: #ffffff !important;             /* Bright White text */
+    border: 2px solid #00e5ff !important;  /* Neon Blue Border */
+    border-radius: 5px !important;
+    padding: 5px !important;
+    font-size: 1rem !important;
+    z-index: 9999 !important;
+    display: block !important;
+    outline: none !important;
+}
+
+/* Hide the normal text when editing */
+.chat-item.editing .chat-name-text {
+    display: none !important;
+}
+
+/* Hide the buttons (Pencil/Trash) when editing so they don't block it */
+.chat-item.editing .chat-actions {
+    display: none !important;
+}
+
+/* =========================================
+   AUTH MODAL (LOGIN SCREEN)
+   ========================================= */
+#auth-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100dvh;
+    background: rgba(2, 6, 23, 0.95);
+    backdrop-filter: blur(15px);
+    z-index: 9999; /* Stays on top of everything */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.5s ease;
+}
+
+#auth-modal.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.auth-box {
+    width: 90%;
+    max-width: 400px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--neon-blue);
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 0 50px rgba(0, 229, 255, 0.1);
+}
+
+.auth-title {
+    font-size: 2.5rem;
+    margin: 0;
+    background: linear-gradient(90deg, #fff, var(--neon-blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 800;
+}
+
+.auth-subtitle {
+    color: var(--text-dim);
+    margin-bottom: 30px;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+}
+
+.input-group {
+    margin-bottom: 15px;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 12px 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-glass);
+    border-radius: 10px;
+    color: white;
+    outline: none;
+    transition: border 0.3s;
+}
+
+.input-group input:focus {
+    border-color: var(--neon-pink);
+    box-shadow: 0 0 10px rgba(255, 47, 208, 0.2);
+}
+
+.auth-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn-primary, .btn-secondary, .btn-ghost {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    border: none;
+    transition: transform 0.2s;
+}
+
+.btn-primary {
+    background: var(--neon-blue);
+    color: black;
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px solid var(--neon-blue);
+    color: var(--neon-blue);
+}
+
+.btn-ghost {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-dim);
+    margin-top: 15px;
+}
+
+.divider {
+    margin: 20px 0;
+    border-bottom: 1px solid var(--border-glass);
+    line-height: 0.1em;
+}
+
+.divider span {
+    background: #0b1121; /* Matches dark bg */
+    padding: 0 10px;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+}
+
+.error-msg {
+    color: #ff2fd0;
+    font-size: 0.9rem;
+    margin-top: 15px;
+    min-height: 20px;
+}
+
+/* Modal Overlay (Background) */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85); /* Dark background */
+    backdrop-filter: blur(5px); /* Blur effect */
+    z-index: 10000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+/* When active, show it */
+.modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* The Popup Box */
+.modal-box {
+    background: #0f172a; /* Dark Blue/Black */
+    border: 1px solid #00e5ff; /* Cyan Border */
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.2); /* Cyan Glow */
+    padding: 30px;
+    border-radius: 15px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay.active .modal-box {
+    transform: scale(1);
+}
+
+/* Typography */
+.modal-box h2 {
+    color: #00e5ff;
+    margin-top: 0;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 1.5rem;
+}
+
+.modal-box p {
+    color: #e2e8f0;
+    font-size: 1rem;
+    line-height: 1.5;
+    margin: 15px 0 25px 0;
+}
+
+/* The OK Button */
+.modal-box button {
+    background: linear-gradient(45deg, #00e5ff, #0099ff);
+    border: none;
+    color: #000;
+    padding: 10px 30px;
+    font-weight: bold;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.modal-box button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 229, 255, 0.4);
+}
+/* =========================================
+   SUCCESS ANIMATION (Animated Tick)
+   ========================================= */
+.success-checkmark {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px auto;
+    position: relative;
+}
+
+.check-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: block;
+    stroke-width: 2;
+    stroke: var(--neon-green); /* Uses your existing neon green */
+    stroke-miterlimit: 10;
+    box-shadow: inset 0px 0px 0px var(--neon-green);
+    animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both;
+}
+
+.check-circle {
+    stroke-dasharray: 166;
+    stroke-dashoffset: 166;
+    stroke-width: 2;
+    stroke-miterlimit: 10;
+    stroke: var(--neon-green);
+    fill: none;
+    animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.check-tick {
+    transform-origin: 50% 50%;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+}
+
+@keyframes stroke {
+    100% { stroke-dashoffset: 0; }
+}
+@keyframes scale {
+    0%, 100% { transform: none; }
+    50% { transform: scale3d(1.1, 1.1, 1); }
+}
+@keyframes fill {
+    100% { box-shadow: inset 0px 0px 0px 30px transparent; }
+}
+
+/* Success Modal Text */
+.success-title {
+    color: var(--neon-green) !important;
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+}
+/* ⚠️ CRITICAL: This hides elements like the OK button */
+.hidden {
+    display: none !important;
+}
+/* Sidebar Footer Container */
+.sidebar-footer {
+    padding: 20px;
+    margin-top: auto; /* Pushes button to the very bottom */
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* The Logout Button */
+.logout-btn {
+    display: block;
+    width: 80%;
+    margin: 0 auto;
+    padding: 12px;
+    
+    background: transparent;
+    border: 1px solid #ff4b4b; /* Red Border */
+    color: #ff4b4b;            /* Red Text */
+    
+    border-radius: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+    background: #ff4b4b;
+    color: white;
+    box-shadow: 0 0 15px rgba(255, 75, 75, 0.4); /* Red Glow */
+    transform: translateY(-2px);
+}
+
+/* Mobile Adjustment */
+@media (max-width: 768px) {
+    .logout-btn {
+        width: 100%;
+        padding: 15px;
+    }
+}
+
+/* Modal Buttons Container */
+.modal-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 25px;
+    width: 100%;
+}
+
+/* Confirm Button (Red) */
+#modal-confirm-group {
+    display: flex;
+    gap: 15px;
+    width: 100%;
+    justify-content: center;
+}
+
+/* Confirm Button (RED) */
+.btn-danger {
+    background: linear-gradient(135deg, #ff4b4b, #ff0000) !important;
+    color: white !important;
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.4);
+    border: none;
+    padding: 10px 30px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1rem;
+    transition: transform 0.2s;
+}
+
+.btn-danger:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 25px rgba(255, 0, 0, 0.6);
+}
+
+/* Cancel Button (Ghost/Outline) */
+.btn-ghost {
+    background: transparent !important;
+    border: 1px solid #00e5ff !important;
+    color: #00e5ff !important;
+    padding: 10px 30px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.btn-ghost:hover {
+    background: rgba(0, 229, 255, 0.1) !important;
+}
+
+/* Standard OK Button (Blue) */
+#modal-ok-btn {
+    background: linear-gradient(45deg, #00e5ff, #0099ff);
+    color: black;
+    border: none;
+    padding: 10px 40px;
+    border-radius: 25px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* =========================================
+   CREDENTIAL POPUP STYLING
+   ========================================= */
+.credential-box {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-glass);
+    border-radius: 12px;
+    padding: 15px;
+    margin: 20px 0;
+    text-align: left;
+}
+
+.cred-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 5px;
+}
+.cred-row:last-child { border-bottom: none; margin-bottom: 0; }
+
+.cred-label { color: var(--text-dim); }
+.cred-value { color: white; font-weight: bold; font-family: monospace; letter-spacing: 1px; }
+.cred-value.highlight { color: var(--neon-blue); text-shadow: 0 0 10px rgba(0, 229, 255, 0.3); }
+
+.warning-text {
+    color: #ff4b4b; /* Red Warning Color */
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 25px;
+    background: rgba(255, 75, 75, 0.1);
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 75, 75, 0.3);
+}
+
+.modal-btn-primary {
+    background: linear-gradient(45deg, #00e5ff, #0099ff);
+    color: black;
+    border: none;
+    padding: 12px 40px;
+    border-radius: 25px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: transform 0.2s;
+    width: 100%;
+}
+.modal-btn-primary:hover { transform: scale(1.02); box-shadow: 0 0 15px rgba(0, 229, 255, 0.4); }
