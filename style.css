@@ -131,15 +131,15 @@ html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   padding: 10px 16px;
   font-size: 14.5px;
   line-height: 1.6;
+  /* Right-alignment is done by the outer wrapper's justify-end — NOT here */
+  /* align-self:flex-end + overflow-wrap shrinks width to 1-char → words split */
   max-width: min(580px, 85vw);
-  overflow-wrap: break-word;   /* breaks long words only, not short ones */
-  word-break: normal;          /* never break "hi" into h/i */
-  white-space: pre-wrap;
-  align-self: flex-end;        /* right-align within parent flex-col */
+  word-break: break-word;   /* only break truly long unbreakable strings (URLs) */
 }
 .dark .user-bubble {
   background: rgba(255,255,255,0.09);
 }
+
 
 /* ── Assistant Message ── */
 .assistant-bubble {
