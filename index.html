@@ -1,100 +1,525 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
-    <title>WinAI</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/png" sizes="32X32" href="icon.png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content, user-scalable=no">
+  <title id="app-title">ChestGuard AI</title>
+  <meta name="description" content="ChestGuard AI — Intelligent chest X-ray analysis powered by custom-trained deep learning models.">
 
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"/>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bg: { dark: '#0d0d0f', light: '#f5f5f7' },
+            surface: { dark: '#18181b', light: '#ffffff' },
+            border: { dark: '#27272a', light: '#e4e4e7' },
+            input: { dark: '#1c1c1f', light: '#f0f0f2' },
+            accent: '#1d9bf0',
+            muted: { dark: '#71717a', light: '#71717a' },
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          keyframes: {
+            'fade-in': { from: { opacity: '0', transform: 'translateY(8px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+            'slide-up': { from: { opacity: '0', transform: 'translateY(16px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+            'slide-in-right': { from: { transform: 'translateX(100%)' }, to: { transform: 'translateX(0)' } },
+            'pulse-glow': { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0.4' } },
+            'thinking': { '0%, 80%, 100%': { transform: 'scale(0)' }, '40%': { transform: 'scale(1)' } },
+          },
+          animation: {
+            'fade-in': 'fade-in 0.3s ease-out',
+            'slide-up': 'slide-up 0.4s ease-out',
+            'slide-in-right': 'slide-in-right 0.3s ease-out',
+            'thinking': 'thinking 1.4s infinite ease-in-out both',
+          },
+        }
+      }
+    }
+  </script>
+
+  <link rel="stylesheet" href="style.css">
 </head>
-<body>
 
-    <div id="preloader">
-        <div class="loader-content">
-            <div class="loader-circle"></div>
-            <div class="loader-text">WinAI</div>
+<body class="h-screen w-screen overflow-hidden bg-bg-light text-zinc-900 dark:bg-bg-dark dark:text-zinc-100 font-sans antialiased">
+
+  <!-- ══════════ PRELOADER ══════════ -->
+  <div id="preloader" class="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-bg-light dark:bg-bg-dark transition-opacity duration-500">
+    <img src="/static/MYLOGO.png" alt="ChestGuard AI" class="w-16 h-16 mb-4 rounded-2xl animate-pulse">
+    <div class="flex gap-1.5 mt-2">
+      <div class="w-2 h-2 rounded-full bg-zinc-400 dark:bg-zinc-500 animate-[thinking_1.4s_infinite_ease-in-out_both] [animation-delay:0ms]"></div>
+      <div class="w-2 h-2 rounded-full bg-zinc-400 dark:bg-zinc-500 animate-[thinking_1.4s_infinite_ease-in-out_both] [animation-delay:160ms]"></div>
+      <div class="w-2 h-2 rounded-full bg-zinc-400 dark:bg-zinc-500 animate-[thinking_1.4s_infinite_ease-in-out_both] [animation-delay:320ms]"></div>
+    </div>
+  </div>
+
+  <!-- ══════════ AUTH MODAL ══════════ -->
+  <div id="auth-modal" class="fixed inset-0 z-[100] hidden bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-[420px] shadow-2xl overflow-hidden animate-slide-up">
+      <!-- Top Section -->
+      <div class="p-8 pb-6 flex flex-col items-center text-center">
+        <img src="/static/MYLOGO.png" alt="ChestGuard AI" class="w-14 h-14 rounded-2xl mb-5 shadow-lg">
+        <h1 class="text-2xl font-bold tracking-tight mb-1">ChestGuard AI</h1>
+        <p class="text-sm text-zinc-500 dark:text-zinc-400">Intelligent chest X-ray analysis</p>
+      </div>
+
+      <div class="px-8 pb-8 flex flex-col gap-3">
+        <input id="auth-username" type="text" placeholder="Username" autocomplete="username"
+          class="w-full px-4 py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-transparent focus:border-accent outline-none text-sm transition-colors placeholder-zinc-400">
+        <input id="auth-password" type="password" placeholder="Password" autocomplete="current-password"
+          class="w-full px-4 py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-transparent focus:border-accent outline-none text-sm transition-colors placeholder-zinc-400">
+        <p id="auth-error" class="text-red-500 text-xs px-1 hidden"></p>
+
+        <div class="flex gap-2 mt-1">
+          <button id="login-btn" class="flex-1 py-3 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-semibold text-sm hover:opacity-90 transition-opacity">
+            Log in
+          </button>
+          <button id="signup-btn" class="flex-1 py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 font-semibold text-sm hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
+            Sign up
+          </button>
         </div>
-    </div>
 
-    <div id="auth-modal">
-        <div class="auth-box">
-            <h2 class="auth-title">WinAI</h2>
-            <p class="auth-subtitle">Identity Verification</p>
-            
-            <div class="input-group">
-                <input type="text" id="auth-username" placeholder="Username">
-            </div>
-            <div class="input-group">
-                <input type="password" id="auth-password" placeholder="Password">
-            </div>
-
-            <div class="auth-buttons">
-                <button class="btn-primary" onclick="handleLogin()">Login</button>
-                <button class="btn-secondary" onclick="handleSignUp()">Sign Up</button>
-            </div>
-            
-            <div class="divider"><span>OR</span></div>
-            
-            <button class="btn-ghost" onclick="handleGuestLogin()">Continue as Guest</button>
-            <p id="auth-error" class="error-msg"></p>
+        <div class="flex items-center gap-3 my-1">
+          <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-800"></div>
+          <span class="text-xs text-zinc-400">or</span>
+          <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-800"></div>
         </div>
+
+        <button id="guest-btn" class="w-full py-3 rounded-2xl border border-zinc-300 dark:border-zinc-700 font-medium text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors flex items-center justify-center gap-2">
+          <span class="material-symbols-rounded text-[18px]">person_outline</span>
+          Continue as Guest
+        </button>
+
+        <p class="text-center text-[11px] text-zinc-400 mt-2">
+          By continuing, you agree to our Terms of Service
+        </p>
+      </div>
     </div>
+  </div>
 
-    <div class="app-container">
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <div class="sidebar-brand">WinAI</div>
-                <div class="sidebar-top-row">
-                    <button class="new-chat-btn" id="new-chat-btn">+ New Chat</button>
-                    <button class="close-sidebar-btn" id="close-sidebar-btn">✖</button>
-                </div>
-            </div>
+  <!-- ══════════ APP SHELL ══════════ -->
+  <div class="flex h-full w-full relative">
 
-            <div class="chat-list" id="chat-list"></div>
+    <!-- ══════ SIDEBAR ══════ -->
+    <aside id="sidebar"
+      class="fixed md:relative inset-y-0 left-0 z-50
+             w-[280px] xl:w-[300px]
+             bg-bg-light dark:bg-bg-dark
+             border-r border-zinc-200 dark:border-zinc-800/60
+             flex flex-col
+             -translate-x-full md:translate-x-0
+             transition-transform duration-300 ease-out">
 
-            <div class="sidebar-footer">
-                <button id="logout-btn" class="logout-btn">Log Out</button>
-            </div>
-        </aside>
-
-        <main class="main-content">
-            <header class="brand-header">
-                <button class="menu-toggle" id="open-sidebar-btn">☰</button>
-                WinAI
-            </header>
-
-            <div id="chat-box"></div>
-
-            <div class="controls-container">
-                <div class="controls">
-                    <img id="preview" alt="preview">
-                    <input type="file" id="img-input" accept="image/*" style="display:none">
-                    <button class="icon-btn" onclick="document.getElementById('img-input').click()">📷</button>
-                    
-                    <textarea id="msg-input" placeholder="Type a message..." rows="1"></textarea>
-                    
-                    <div id="send-btn">Send</div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <div id="custom-modal" class="modal-overlay hidden">
-        <div class="modal-box">
-            <h2 id="modal-title">Title</h2>
-            <p id="modal-message">Message</p>
-            
-            <div class="modal-buttons">
-                <button id="modal-ok-btn" onclick="closeModal()">OK</button>
-                <div id="modal-confirm-group" class="hidden">
-                    <button id="modal-cancel-btn" onclick="closeModal()" class="btn-ghost">Cancel</button>
-                    <button id="modal-yes-btn" class="btn-danger">Confirm</button>
-                </div>
-            </div>
+      <!-- Sidebar Header -->
+      <div class="flex items-center justify-between px-3 pt-3 pb-2">
+        <div class="flex items-center gap-2 px-1">
+          <img src="/static/MYLOGO.png" alt="Logo" class="w-8 h-8 rounded-xl">
+          <span id="sidebar-app-name" class="font-semibold text-[15px] tracking-tight">ChestGuard AI</span>
         </div>
+        <div class="flex items-center gap-1">
+          <button id="mobile-sidebar-close"
+            class="md:hidden w-9 h-9 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition-colors">
+            <span class="material-symbols-rounded text-xl">close</span>
+          </button>
+          <button id="new-chat-icon-btn"
+            class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 transition-colors"
+            title="New Chat">
+            <span class="material-symbols-rounded text-xl">edit_square</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- New Chat Button -->
+      <div class="px-3 py-2">
+        <button id="sidebar-new-chat-btn"
+          class="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl
+                 bg-zinc-100 dark:bg-zinc-800/70
+                 hover:bg-zinc-200 dark:hover:bg-zinc-700/70
+                 text-zinc-700 dark:text-zinc-300
+                 text-sm font-medium transition-colors">
+          <span class="material-symbols-rounded text-[20px]">add</span>
+          New Chat
+        </button>
+      </div>
+
+      <!-- Search -->
+      <div class="px-3 pb-2">
+        <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800/70 text-zinc-400">
+          <span class="material-symbols-rounded text-[18px]">search</span>
+          <input id="chat-search" type="search" placeholder="Search chats"
+            class="bg-transparent border-none outline-none text-sm w-full text-zinc-700 dark:text-zinc-300 placeholder-zinc-400">
+        </div>
+      </div>
+
+      <!-- Chat List -->
+      <div class="flex-1 overflow-y-auto sidebar-scrollbar px-3 py-1">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 px-2 mb-2">Conversations</p>
+        <div id="chat-list" class="flex flex-col gap-0.5"></div>
+      </div>
+
+      <!-- Sidebar Footer -->
+      <div class="border-t border-zinc-200 dark:border-zinc-800/60 p-3">
+        <div class="flex items-center gap-2">
+          <div id="profile-avatar"
+            class="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-cyan-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+            G
+          </div>
+          <div class="flex-1 min-w-0">
+            <p id="profile-name" class="text-sm font-medium truncate">Guest</p>
+            <p id="profile-mode" class="text-[11px] text-zinc-400 truncate">Guest mode</p>
+          </div>
+          <button id="settings-open-btn"
+            class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition-colors flex-shrink-0">
+            <span class="material-symbols-rounded text-[18px]">settings</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Sidebar Scrim -->
+    <div id="sidebar-scrim" class="fixed inset-0 bg-black/50 z-40 hidden backdrop-blur-sm md:hidden"></div>
+
+    <!-- ══════ MAIN AREA ══════ -->
+    <main class="flex-1 flex flex-col relative min-w-0 overflow-hidden">
+
+      <!-- Top Bar -->
+      <header class="flex items-center justify-between px-4 py-3 flex-shrink-0 relative z-10">
+        <!-- Left -->
+        <div class="flex items-center gap-2">
+          <button id="open-sidebar-btn"
+            class="md:hidden w-9 h-9 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition-colors">
+            <span class="material-symbols-rounded text-xl">menu</span>
+          </button>
+          <!-- Logo shown on desktop only when sidebar is there -->
+          <div class="hidden md:flex items-center gap-2 opacity-0 pointer-events-none">
+            <img src="/static/MYLOGO.png" alt="Logo" class="w-7 h-7 rounded-lg">
+          </div>
+        </div>
+
+        <!-- Center Nav -->
+        <div class="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/70 rounded-full px-1.5 py-1.5">
+          <button class="px-4 py-1 rounded-full bg-white dark:bg-zinc-700 text-sm font-medium shadow-sm transition-all">Ask</button>
+          <button class="px-4 py-1 rounded-full text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors cursor-not-allowed opacity-60">Imagine</button>
+        </div>
+
+        <!-- Right -->
+        <div class="flex items-center gap-2">
+          <button id="private-mode-btn"
+            class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            title="Toggle Private Chat">
+            <span class="material-symbols-rounded text-[18px]">visibility_off</span>
+            <span class="hidden md:inline text-xs">Private</span>
+          </button>
+          <button id="topbar-avatar-btn"
+            class="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-cyan-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 hover:ring-2 hover:ring-accent transition-all"
+            id="topbar-user-avatar">
+            G
+          </button>
+        </div>
+      </header>
+
+      <!-- Chat Box Area -->
+      <section id="chat-box" class="flex-1 overflow-y-auto chat-scrollbar relative">
+
+        <!-- Hero / Welcome State -->
+        <div id="hero-state" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-6 text-center">
+          <img src="/static/MYLOGO.png" alt="ChestGuard AI" class="w-16 h-16 rounded-2xl mb-5 opacity-90">
+          <h2 class="text-2xl md:text-3xl font-bold mb-2 tracking-tight">What can I help with?</h2>
+          <p class="text-zinc-500 dark:text-zinc-400 text-sm max-w-sm">
+            Select a medical AI model below and start a conversation, or upload a chest X-ray for analysis.
+          </p>
+          <!-- Quick prompts -->
+          <div class="pointer-events-auto grid grid-cols-1 sm:grid-cols-2 gap-2 mt-8 max-w-lg w-full">
+            <button class="quick-prompt text-left px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
+              <span class="font-medium">Analyze my X-ray</span>
+              <p class="text-zinc-500 text-xs mt-0.5">Upload chest X-ray for AI analysis</p>
+            </button>
+            <button class="quick-prompt text-left px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
+              <span class="font-medium">What is Pneumonia?</span>
+              <p class="text-zinc-500 text-xs mt-0.5">Learn about lung conditions</p>
+            </button>
+            <button class="quick-prompt text-left px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
+              <span class="font-medium">Explain TB symptoms</span>
+              <p class="text-zinc-500 text-xs mt-0.5">Tuberculosis signs and diagnosis</p>
+            </button>
+            <button class="quick-prompt text-left px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
+              <span class="font-medium">What is Cardiomegaly?</span>
+              <p class="text-zinc-500 text-xs mt-0.5">Heart enlargement explained</p>
+            </button>
+          </div>
+        </div>
+
+        <!-- Messages Container -->
+        <div id="messages-container" class="max-w-3xl mx-auto px-4 py-6 flex flex-col gap-6 pb-4"></div>
+      </section>
+
+      <!-- ══════ COMPOSER ══════ -->
+      <div class="flex-shrink-0 px-4 pb-4 pt-2">
+        <div class="max-w-3xl mx-auto">
+
+          <!-- Image Preview Strip -->
+          <div id="image-preview-strip" class="hidden mb-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <div class="relative inline-flex">
+                <img id="preview-img" src="" alt="Selected X-ray"
+                  class="h-20 w-20 object-cover rounded-2xl border border-zinc-200 dark:border-zinc-700">
+                <button id="remove-image-btn"
+                  class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-full flex items-center justify-center hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors shadow-md">
+                  <span class="material-symbols-rounded text-[13px]">close</span>
+                </button>
+              </div>
+              <div class="flex flex-col">
+                <span id="preview-model-label" class="text-xs font-medium text-zinc-600 dark:text-zinc-300">No model selected</span>
+                <span class="text-[11px] text-zinc-400">X-ray image ready</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main Input Card -->
+          <div id="composer"
+            class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-lg transition-shadow focus-within:shadow-xl focus-within:border-zinc-300 dark:focus-within:border-zinc-700 relative">
+
+            <!-- Toolbar Row (top) -->
+            <div class="flex items-center gap-1 px-3 pt-3 pb-1">
+
+              <!-- Attach Image Button -->
+              <div class="relative">
+                <button id="attach-btn"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  title="Upload X-ray">
+                  <span class="material-symbols-rounded text-[18px]">add_photo_alternate</span>
+                  <span class="hidden sm:inline">Upload X-ray</span>
+                </button>
+                <input id="img-input" type="file" accept="image/*" class="hidden">
+              </div>
+
+              <!-- Model Selector -->
+              <div class="relative model-picker">
+                <button id="model-trigger"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-zinc-700 dark:text-zinc-300">
+                  <span id="model-trigger-icon" class="material-symbols-rounded text-[16px]">neurology</span>
+                  <span id="selected-model-label">Pneumonia Model</span>
+                  <span class="material-symbols-rounded text-[14px] text-zinc-400">keyboard_arrow_down</span>
+                </button>
+
+                <!-- Model Dropdown Menu -->
+                <div id="model-menu"
+                  class="hidden absolute bottom-full left-0 mb-2 w-80 bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 z-[200] flex flex-col animate-slide-up"
+                  style="max-height: min(420px, calc(100vh - 180px))">
+
+                  <div class="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 flex-shrink-0 flex items-center gap-2">
+                    <span class="material-symbols-rounded text-[18px] text-teal-500">health_and_safety</span>
+                    <div>
+                      <h3 class="font-semibold text-sm leading-tight">ChestGuard Models</h3>
+                      <p class="text-[11px] text-zinc-400 leading-tight">Select a diagnostic AI model</p>
+                    </div>
+                  </div>
+
+                  <div id="model-menu-list" class="overflow-y-auto flex-1 py-1 sidebar-scrollbar">
+                    <!-- Populated by JS -->
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex-1"></div>
+
+              <!-- Deep Think / Private mode indicators -->
+              <button id="private-mode-chip" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 transition-colors">
+                <span class="material-symbols-rounded text-[16px]">lock</span>
+                Private
+              </button>
+            </div>
+
+            <!-- Text Textarea -->
+            <div class="px-4 py-2">
+              <textarea id="msg-input" placeholder="Ask anything or upload a chest X-ray..." rows="1"
+                class="w-full bg-transparent border-none outline-none resize-none text-sm leading-relaxed text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 max-h-40 sidebar-scrollbar">
+              </textarea>
+            </div>
+
+            <!-- Bottom Row -->
+            <div class="flex items-center justify-between px-3 pb-3">
+              <div class="flex items-center gap-1">
+                <button class="w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors" title="Voice input">
+                  <span class="material-symbols-rounded text-[18px]">mic</span>
+                </button>
+              </div>
+
+              <button id="send-btn"
+                class="flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm
+                       bg-zinc-900 dark:bg-white text-white dark:text-zinc-900
+                       hover:bg-zinc-700 dark:hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed
+                       transition-all active:scale-95">
+                <span class="material-symbols-rounded text-[16px]">arrow_upward</span>
+                <span class="hidden sm:inline">Send</span>
+              </button>
+            </div>
+          </div>
+
+          <p class="text-center text-[11px] text-zinc-400 dark:text-zinc-600 mt-2">
+            ChestGuard AI can make mistakes. For clinical use, consult a medical professional.
+          </p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ══════════ SETTINGS PANEL (slide-in from right) ══════════ -->
+  <div id="settings-panel"
+    class="fixed inset-0 md:inset-y-0 md:left-auto md:right-0 md:w-[480px] z-[80]
+           bg-bg-light dark:bg-bg-dark
+           flex flex-col
+           hidden
+           md:shadow-[-20px_0_60px_rgba(0,0,0,0.25)]
+           border-l border-zinc-200 dark:border-zinc-800">
+
+    <!-- Settings Header -->
+    <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800">
+      <button id="settings-close-btn"
+        class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition-colors">
+        <span class="material-symbols-rounded text-xl">arrow_back</span>
+      </button>
+      <h2 class="font-semibold text-base">Settings</h2>
+      <div class="w-9"></div>
     </div>
 
-    <script type="module" src="script.js"></script>
+    <!-- Settings Body -->
+    <div class="flex-1 overflow-y-auto sidebar-scrollbar p-5 space-y-6">
+
+      <!-- Profile Card -->
+      <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 flex items-center gap-4">
+        <div id="settings-avatar"
+          class="w-14 h-14 rounded-full bg-gradient-to-br from-teal-400 to-cyan-600 flex items-center justify-center text-white font-bold text-2xl flex-shrink-0">
+          G
+        </div>
+        <div class="flex-1 min-w-0">
+          <p id="settings-user-name" class="font-semibold text-base truncate">Guest</p>
+          <p id="settings-user-mode" class="text-sm text-zinc-400 truncate">Guest preview mode</p>
+        </div>
+        <button id="logout-btn"
+          class="px-3 py-1.5 rounded-full text-xs font-medium border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-zinc-500">
+          Sign out
+        </button>
+      </div>
+
+      <!-- App Settings -->
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 px-1 mb-3">App Settings</p>
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
+
+          <!-- Theme -->
+          <div class="flex items-center justify-between p-4">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-rounded text-[20px] text-zinc-400">contrast</span>
+              <div>
+                <p class="text-sm font-medium">Theme</p>
+                <p id="theme-status-text" class="text-xs text-zinc-400">Dark Mode</p>
+              </div>
+            </div>
+            <button id="theme-toggle-btn"
+              class="relative w-11 h-6 rounded-full bg-zinc-200 dark:bg-teal-500 transition-colors duration-300 focus:outline-none">
+              <span id="theme-toggle-thumb"
+                class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 translate-x-5 dark:translate-x-0 dark:translate-x-5"></span>
+            </button>
+          </div>
+
+          <!-- Change App Name -->
+          <button id="change-name-btn" class="w-full flex items-center justify-between p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors text-left">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-rounded text-[20px] text-zinc-400">edit</span>
+              <div>
+                <p class="text-sm font-medium">App Name</p>
+                <p class="text-xs text-zinc-400">Currently: <span id="app-name-display">ChestGuard AI</span></p>
+              </div>
+            </div>
+            <span class="material-symbols-rounded text-[18px] text-zinc-400">chevron_right</span>
+          </button>
+
+          <!-- Clear History -->
+          <button id="clear-history-settings-btn" class="w-full flex items-center gap-3 p-4 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors text-red-500">
+            <span class="material-symbols-rounded text-[20px]">delete_sweep</span>
+            <div class="text-left">
+              <p class="text-sm font-medium">Clear History</p>
+              <p class="text-xs text-red-400 dark:text-red-600">Delete all conversations</p>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Models Info -->
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 px-1 mb-3">Diagnostic Models</p>
+        <div id="settings-model-status" class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-4 space-y-3">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- About -->
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 px-1 mb-3">About</p>
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5">
+          <div class="flex items-center gap-3 mb-3">
+            <img src="/static/MYLOGO.png" alt="ChestGuard AI" class="w-10 h-10 rounded-xl">
+            <div>
+              <p class="font-semibold text-sm">ChestGuard AI</p>
+              <p class="text-xs text-zinc-400">Version 2.0.0</p>
+            </div>
+          </div>
+          <p class="text-xs text-zinc-400 leading-relaxed">
+            Powered by custom-trained EfficientNet-B3 deep learning models for chest X-ray analysis,
+            integrated with Ollama LLM for medical explanation generation.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ CUSTOM MODAL ══════════ -->
+  <div id="custom-modal" class="fixed inset-0 z-[150] hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-slide-up">
+      <h3 id="modal-title" class="font-bold text-lg mb-2">Notice</h3>
+      <p id="modal-message" class="text-zinc-500 dark:text-zinc-400 text-sm leading-relaxed mb-6"></p>
+      <div class="flex gap-2 justify-end">
+        <button id="modal-cancel-btn"
+          class="hidden px-5 py-2.5 rounded-2xl text-sm font-medium border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+          Cancel
+        </button>
+        <button id="modal-ok-btn"
+          class="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 transition-opacity">
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ NAME EDIT MODAL ══════════ -->
+  <div id="name-modal" class="fixed inset-0 z-[160] hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-slide-up">
+      <h3 class="font-bold text-lg mb-4">Change App Name</h3>
+      <input id="name-input" type="text" placeholder="ChestGuard AI"
+        class="w-full px-4 py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-transparent focus:border-accent outline-none text-sm mb-4 transition-colors">
+      <div class="flex gap-2 justify-end">
+        <button id="name-cancel-btn"
+          class="px-5 py-2.5 rounded-2xl text-sm font-medium border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+          Cancel
+        </button>
+        <button id="name-save-btn"
+          class="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 transition-opacity">
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="script.js"></script>
 </body>
 </html>

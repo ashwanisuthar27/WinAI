@@ -4,4 +4,9 @@ python-dotenv
 python-multipart
 pydantic
 pillow
+numpy
+opencv-python-headless
+albumentations
+timm
+torch
 ollama

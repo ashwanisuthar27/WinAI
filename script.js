@@ -1,919 +1,1170 @@
-// ==========================================
-// 1. FIREBASE CONFIGURATION & IMPORTS
-// ==========================================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, get, child, update, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+// ═══════════════════════════════════════════════════════════════
+// ChestGuard AI — script.js
+// Full Grok-style UI with Firebase auth, medical model integration
+// ═══════════════════════════════════════════════════════════════
 
-// ⚠️ PASTE YOUR FIREBASE CONFIG HERE ⚠️
+import { initializeApp }                            from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, get, child, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+// ── Firebase Config ──────────────────────────────────────────────
 const firebaseConfig = {
-  apiKey: "AIzaSyDUjEEGn1M2aPffcPtnFeevkTFrbQ7j1vI",
-  authDomain: "fir-421a6.firebaseapp.com",
-  databaseURL: "https://fir-421a6-default-rtdb.firebaseio.com",
-  projectId: "fir-421a6",
-  storageBucket: "fir-421a6.firebasestorage.app",
+  apiKey:            "AIzaSyDUjEEGn1M2aPffcPtnFeevkTFrbQ7j1vI",
+  authDomain:        "fir-421a6.firebaseapp.com",
+  databaseURL:       "https://fir-421a6-default-rtdb.firebaseio.com",
+  projectId:         "fir-421a6",
+  storageBucket:     "fir-421a6.firebasestorage.app",
   messagingSenderId: "423073426054",
-  appId: "1:423073426054:web:5caeddeb0fa352c2593f07",
-  measurementId: "G-5Q41W61TJY"
+  appId:             "1:423073426054:web:5caeddeb0fa352c2593f07",
+  measurementId:     "G-5Q41W61TJY",
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const db          = getDatabase(firebaseApp);
+
+// ── Constants ────────────────────────────────────────────────────
+const API_BASE     = "https://catatonically-nonmedicinal-lorenza.ngrok-free.dev";
+const AUTH_TOKEN   = "my-secret-key";
+const NGROK_HEADER = { "ngrok-skip-browser-warning": "true" };
+const USE_FIREBASE = true;
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_TIME = 20 * 60 * 1000; // 20 minutes
+
+// ── State ────────────────────────────────────────────────────────
+let currentUser      = sessionStorage.getItem("currentUser");
+let isGuest          = sessionStorage.getItem("isGuest") === "true";
+let currentSessionId = sessionStorage.getItem("currentSessionId");
+let selectedImageB64 = null;
+let selectedModelId  = null;
+let availableModels  = [];
+let isSending        = false;
+let fbLoadedOnce     = false;
+let isPrivateMode    = false;
+
+let chatSessions = {};   // { [id]: { name, timestamp } }
+let messageCache = {};   // { [id]: Message[] }
+
+// ── Model icon mapping ───────────────────────────────────────────
+const MODEL_ICONS = {
+  pneumonia:   { icon: "coronavirus",       color: "#ef4444", bg: "rgba(239,68,68,0.12)"  },
+  tb:          { icon: "biotech",            color: "#f97316", bg: "rgba(249,115,22,0.12)" },
+  pneumothorax:{ icon: "air",               color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
+  cardiomegaly:{ icon: "favorite",          color: "#ec4899", bg: "rgba(236,72,153,0.12)" },
+  emphysema:   { icon: "cloud",             color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
+  mass_nodule: { icon: "bubble_chart",      color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+  rib_fracture:{ icon: "accessibility_new", color: "#14b8a6", bg: "rgba(20,184,166,0.12)" },
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-
-// 🔒 GLOBAL STATE
-let isSending = false;
-let selectedImageBase64 = null;
-
-// ==========================================
-// 2. APP CONFIG & STATE
-// ==========================================
-const API_BASE = " https://catatonically-nonmedicinal-lorenza.ngrok-free.dev"; 
-const AUTH_TOKEN = "my-secret-key"; 
-
-// 🛠️ FIX: Defined the missing variable here
-const USE_FIREBASE = true; 
-
-let currentUser = sessionStorage.getItem('currentUser'); 
-let isGuest = sessionStorage.getItem('isGuest') === 'true';
-
-// Chat Data
-let currentSessionId = "session-init"; 
-let chatSessions = {}; 
-let messageCache = {}; 
-
-// Constants
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_TIME = 20 * 60 * 1000;
-
-// ==========================================
-// 3. UI HELPER FUNCTIONS
-// ==========================================
-
-// ✨ HELPER: Toggle Preloader
-function toggleLoader(show) {
-    const preloader = document.getElementById('preloader');
-    if (!preloader) return;
-    
-    if (show) {
-        preloader.classList.remove('loaded'); 
-        preloader.style.visibility = 'visible';
-        preloader.style.opacity = '1';
-    } else {
-        // Clear inline styles so CSS class can take over
-        preloader.style.visibility = '';
-        preloader.style.opacity = '';
-        preloader.classList.add('loaded');
-    }
+function getModelMeta(modelId) {
+  const id = (modelId || "").toLowerCase();
+  for (const [key, val] of Object.entries(MODEL_ICONS)) {
+    if (id.includes(key.split("_")[0])) return val;
+  }
+  return { icon: "neurology", color: "#71717a", bg: "rgba(113,113,122,0.12)" };
 }
 
-function showModal(title, message) {
-    const modal = document.getElementById("custom-modal");
-    if (!modal) return alert(message);
+// ── Element Cache ────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const els = {};
 
-    if (!document.getElementById("modal-title")) return location.reload(); 
-
-    document.getElementById("modal-title").innerText = title;
-    document.getElementById("modal-message").innerHTML = message.replace(/\n/g, "<br>");
-    
-    document.getElementById("modal-ok-btn").classList.remove("hidden");
-    document.getElementById("modal-confirm-group").classList.add("hidden");
-
-    modal.classList.remove("hidden");
-    modal.classList.add("active");
+function bindElements() {
+  Object.assign(els, {
+    preloader:               $("preloader"),
+    authModal:               $("auth-modal"),
+    authUsername:            $("auth-username"),
+    authPassword:            $("auth-password"),
+    authError:               $("auth-error"),
+    sidebar:                 $("sidebar"),
+    sidebarScrim:            $("sidebar-scrim"),
+    chatList:                $("chat-list"),
+    chatSearch:              $("chat-search"),
+    heroState:               $("hero-state"),
+    chatBox:                 $("chat-box"),
+    messagesContainer:       $("messages-container"),
+    imgInput:                $("img-input"),
+    imagePreviewStrip:       $("image-preview-strip"),
+    previewImg:              $("preview-img"),
+    previewModelLabel:       $("preview-model-label"),
+    composer:                $("composer"),
+    msgInput:                $("msg-input"),
+    modelTrigger:            $("model-trigger"),
+    modelTriggerIcon:        $("model-trigger-icon"),
+    selectedModelLabel:      $("selected-model-label"),
+    modelMenu:               $("model-menu"),
+    modelMenuList:           $("model-menu-list"),
+    sendBtn:                 $("send-btn"),
+    attachBtn:               $("attach-btn"),
+    privateModeBtnTop:       $("private-mode-btn"),
+    privateModeBtnChip:      $("private-mode-chip"),
+    settingsPanel:           $("settings-panel"),
+    settingsModelStatus:     $("settings-model-status"),
+    profileAvatar:           $("profile-avatar"),
+    profileName:             $("profile-name"),
+    profileMode:             $("profile-mode"),
+    topbarAvatarBtn:         $("topbar-avatar-btn"),
+    settingsAvatar:          $("settings-avatar"),
+    settingsUserName:        $("settings-user-name"),
+    settingsUserMode:        $("settings-user-mode"),
+    modal:                   $("custom-modal"),
+    modalTitle:              $("modal-title"),
+    modalMessage:            $("modal-message"),
+    modalOkBtn:              $("modal-ok-btn"),
+    modalCancelBtn:          $("modal-cancel-btn"),
+    nameModal:               $("name-modal"),
+    nameInput:               $("name-input"),
+    themeToggleBtn:          $("theme-toggle-btn"),
+    themeStatusText:         $("theme-status-text"),
+    changeNameBtn:           $("change-name-btn"),
+    clearHistoryBtn:         $("clear-history-settings-btn"),
+    sidebarNewChatBtn:       $("sidebar-new-chat-btn"),
+    newChatIconBtn:          $("new-chat-icon-btn"),
+    logoutBtn:               $("logout-btn"),
+    removeImageBtn:          $("remove-image-btn"),
+    appNameDisplay:          $("app-name-display"),
+    sidebarAppName:          $("sidebar-app-name"),
+  });
 }
 
-function showConfirm(title, message, onYesCallback) {
-    const modal = document.getElementById("custom-modal");
-    if (!modal) {
-        if(confirm(message)) onYesCallback();
-        return;
-    }
+// ════════════════════════════════════════════════════
+// PRELOADER
+// ════════════════════════════════════════════════════
+function hidePreloader() {
+  if (!els.preloader) return;
+  els.preloader.classList.add("fade-out");
+  setTimeout(() => els.preloader.style.display = "none", 600);
+}
 
-    document.getElementById("modal-title").innerText = title;
-    document.getElementById("modal-message").innerHTML = message.replace(/\n/g, "<br>");
+// ════════════════════════════════════════════════════
+// MODAL
+// ════════════════════════════════════════════════════
+function openModal(title, message, onConfirm = null) {
+  if (!els.modal) return;
+  els.modalTitle.textContent   = title;
+  els.modalMessage.innerHTML   = String(message).replace(/\n/g, "<br>");
+  els.modal.classList.remove("hidden");
 
-    document.getElementById("modal-ok-btn").classList.add("hidden");
-    const confirmGroup = document.getElementById("modal-confirm-group");
-    confirmGroup.classList.remove("hidden");
-    confirmGroup.style.display = "flex"; 
-
-    const yesBtn = document.getElementById("modal-yes-btn");
-    const newYesBtn = yesBtn.cloneNode(true);
-    yesBtn.parentNode.replaceChild(newYesBtn, yesBtn);
-
-    newYesBtn.onclick = () => {
-        closeModal();
-        onYesCallback(); 
-    };
-
-    modal.classList.remove("hidden");
-    modal.classList.add("active");
+  if (onConfirm) {
+    els.modalCancelBtn.classList.remove("hidden");
+    els.modalOkBtn.onclick = () => { closeModal(); onConfirm(); };
+  } else {
+    els.modalCancelBtn.classList.add("hidden");
+    els.modalOkBtn.onclick = closeModal;
+  }
 }
 
 function closeModal() {
-    const modal = document.getElementById("custom-modal");
-    if (modal) {
-        modal.classList.remove("active");
-        setTimeout(() => modal.classList.add("hidden"), 300);
-    }
+  if (!els.modal) return;
+  els.modal.classList.add("hidden");
+  els.modalCancelBtn.classList.add("hidden");
+  els.modalOkBtn.onclick = closeModal;
 }
 
-// ✨ SHOW SIGN-UP CREDENTIALS POPUP
-function showSignUpSuccess(username, password) {
-    const modal = document.getElementById("custom-modal");
-    const mBox = modal.querySelector(".modal-box");
-    const originalContent = mBox.innerHTML; // Backup
-
-    mBox.innerHTML = `
-        <div class="success-checkmark">
-            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
-                <circle class="check-circle" cx="26" cy="26" r="25" fill="none"/>
-                <path class="check-tick" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
-            </svg>
-        </div>
-        <h2 class="success-title">Account Created</h2>
-        
-        <div class="credential-box">
-            <div class="cred-row">
-                <span class="cred-label">Username:</span>
-                <span class="cred-value">${username}</span>
-            </div>
-            <div class="cred-row">
-                <span class="cred-label">Password:</span>
-                <span class="cred-value highlight">${password}</span>
-            </div>
-        </div>
-
-        <p class="warning-text">
-            ⚠️ <b>WARNING:</b> Please remember your username and password. You will <u>not</u> be able to create a new account on this device. If you forget your credentials email the Admin for help at <a href="mailto:pranavsinghkia@gmail.com" style="color: #ffffff;">Send Email</a>.
-        </p>
-
-        <button id="signup-continue-btn" class="modal-btn-primary">Continue</button>
-    `;
-
-    modal.classList.remove("hidden");
-    modal.classList.add("active");
-
-    document.getElementById("signup-continue-btn").onclick = () => {
-        modal.classList.remove("active");
-        setTimeout(() => {
-            modal.classList.add("hidden");
-            mBox.innerHTML = originalContent; // Restore modal
-            
-            // Trigger Loading Animation -> Login
-            toggleLoader(true);
-            setTimeout(() => {
-                completeLogin(username, false);
-                toggleLoader(false);
-            }, 1500);
-        }, 300);
-    };
-}
-
-function showSuccessLogin(username) {
-    const modal = document.getElementById("custom-modal");
-    const mBox = modal.querySelector(".modal-box");
-    const originalContent = mBox.innerHTML;
-
-    mBox.innerHTML = `
-        <div class="success-checkmark">
-            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
-                <circle class="check-circle" cx="26" cy="26" r="25" fill="none"/>
-                <path class="check-tick" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
-            </svg>
-        </div>
-        <h2 class="success-title">Login Successful</h2>
-        <p style="color:white;">Welcome back, ${username}!</p>
-    `;
-
-    modal.classList.remove("hidden");
-    modal.classList.add("active");
-
-    setTimeout(() => {
-        modal.classList.remove("active");
-        setTimeout(() => {
-            modal.classList.add("hidden");
-            mBox.innerHTML = originalContent;
-            
-            const okBtn = document.getElementById("modal-ok-btn");
-            if(okBtn) okBtn.onclick = closeModal;
-            
-            completeLogin(username, false); 
-        }, 300);
-    }, 2000);
-}
-
-// ==========================================
-// 4. AUTHENTICATION & LOCKOUT
-// ==========================================
-
+// ════════════════════════════════════════════════════
+// AUTH — Login lockout helpers
+// ════════════════════════════════════════════════════
 function getDeviceId() {
-    let deviceId = localStorage.getItem('device_id');
-    if (!deviceId) {
-        deviceId = 'dev-' + Date.now().toString(36) + Math.random().toString(36).substr(2);
-        localStorage.setItem('device_id', deviceId);
-    }
-    return deviceId;
-}
-
-function validateInputs(username, password) {
-    // 1. Username Validation
-    const usernameRegex = /^[a-zA-Z]/; // Must start with a letter
-    if (!usernameRegex.test(username)) return "Username must start with a letter.";
-    if (username.length < 5) return "Username must be at least 5 characters.";
-    
-    // 2. Password Validation
-    if (password.length < 8) return "Password must be at least 8 characters.";
-    if (!/[A-Z]/.test(password)) return "Password needs at least 1 Uppercase letter.";
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) return "Password needs at least 1 Special Character.";
-    return null; 
+  let id = localStorage.getItem("device_id");
+  if (!id) { id = `dev-${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`; localStorage.setItem("device_id", id); }
+  return id;
 }
 
 function getLockoutStatus() {
-    const lockoutStart = localStorage.getItem('lockout_start');
-    const failedAttempts = parseInt(localStorage.getItem('failed_attempts') || '0');
-
-    if (lockoutStart) {
-        const timePassed = Date.now() - parseInt(lockoutStart);
-        if (timePassed < LOCKOUT_TIME) {
-            const minutesLeft = Math.ceil((LOCKOUT_TIME - timePassed) / 60000);
-            return { locked: true, timeLeft: minutesLeft };
-        } else {
-            localStorage.removeItem('lockout_start');
-            localStorage.setItem('failed_attempts', '0');
-            return { locked: false, attempts: 0 };
-        }
-    }
-    return { locked: false, attempts: failedAttempts };
+  const start    = localStorage.getItem("lockout_start");
+  const attempts = parseInt(localStorage.getItem("failed_attempts") || "0", 10);
+  if (!start) return { locked: false, attempts };
+  const elapsed = Date.now() - parseInt(start, 10);
+  if (elapsed >= LOCKOUT_TIME) {
+    localStorage.removeItem("lockout_start");
+    localStorage.setItem("failed_attempts", "0");
+    return { locked: false, attempts: 0 };
+  }
+  return { locked: true, timeLeft: Math.ceil((LOCKOUT_TIME - elapsed) / 60000) };
 }
 
 function registerFailure() {
-    let attempts = parseInt(localStorage.getItem('failed_attempts') || '0');
-    attempts++;
-    localStorage.setItem('failed_attempts', attempts);
-    if (attempts >= MAX_ATTEMPTS) {
-        localStorage.setItem('lockout_start', Date.now());
-        return true; 
-    }
-    return false;
+  const n = parseInt(localStorage.getItem("failed_attempts") || "0", 10) + 1;
+  localStorage.setItem("failed_attempts", String(n));
+  if (n >= MAX_ATTEMPTS) { localStorage.setItem("lockout_start", String(Date.now())); return true; }
+  return false;
+}
+
+function validateInputs(user, pass) {
+  if (!/^[a-zA-Z]/.test(user))        return "Username must start with a letter.";
+  if (user.length < 5)                 return "Username must be at least 5 characters.";
+  if (pass.length < 8)                 return "Password must be at least 8 characters.";
+  if (!/[A-Z]/.test(pass))             return "Password needs at least 1 uppercase letter.";
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(pass)) return "Password needs at least 1 special character.";
+  return null;
+}
+
+function showAuthError(msg) {
+  if (!els.authError) return;
+  els.authError.textContent = msg;
+  els.authError.classList.remove("hidden");
 }
 
 async function handleLogin() {
-    const user = document.getElementById("auth-username").value.trim();
-    const pass = document.getElementById("auth-password").value.trim();
-    const errorMsg = document.getElementById("auth-error");
-    const deviceId = getDeviceId();
+  const user = els.authUsername.value.trim();
+  const pass = els.authPassword.value.trim();
+  els.authError?.classList.add("hidden");
 
-    const status = getLockoutStatus();
-    if (status.locked) {
-        errorMsg.textContent = `Locked (${status.timeLeft}m left)`;
-        showModal("Account Locked", `Please wait <b>${status.timeLeft} minutes</b>.`);
-        return;
+  const status = getLockoutStatus();
+  if (status.locked) {
+    openModal("Account Locked", `Too many attempts. Try again in ${status.timeLeft} minute(s).`);
+    return;
+  }
+  if (!user || !pass) { showAuthError("Please enter username and password."); return; }
+
+  try {
+    const devId    = getDeviceId();
+    const devSnap  = await get(child(ref(db), `devices/${devId}`));
+    if (devSnap.exists() && devSnap.val() !== user) {
+      openModal("Access Denied", `This device is linked to another account.`); return;
     }
-
-    if (!user || !pass) { errorMsg.textContent = "Please fill in all fields."; return; }
-    errorMsg.textContent = "Verifying...";
-
-    try {
-        const devSnap = await get(child(ref(db), `devices/${deviceId}`));
-        if (devSnap.exists()) {
-            const owner = devSnap.val();
-            if (owner !== user) {
-                errorMsg.textContent = "Access Denied.";
-                showModal("Access Denied", `Device linked to: <b>'${owner}'</b>.`);
-                return;
-            }
-        } 
-
-        const snapshot = await get(child(ref(db), `users/${user}`));
-        if (snapshot.exists()) {
-            const userData = snapshot.val();
-            if (userData.password === pass) {
-                localStorage.removeItem('failed_attempts');
-                localStorage.removeItem('lockout_start');
-                showSuccessLogin(user); 
-            } else {
-                const isNowLocked = registerFailure();
-                const attemptsLeft = MAX_ATTEMPTS - (status.attempts + 1);
-                if (isNowLocked) {
-                    errorMsg.textContent = "Locked for 20m.";
-                    showModal("Security Alert", "Account locked for 20 minutes.");
-                } else {
-                    errorMsg.textContent = `Incorrect password.`;
-                    showModal("Login Failed", `Incorrect Password.<br><b>${attemptsLeft}</b> attempts remaining.`);
-                }
-            }
-        } else {
-            errorMsg.textContent = "User not found.";
-        }
-    } catch (e) {
-        errorMsg.textContent = "Connection error.";
-        console.error(e);
+    const userSnap = await get(child(ref(db), `users/${user}`));
+    if (!userSnap.exists())             { showAuthError("User not found."); return; }
+    if (userSnap.val().password !== pass) {
+      const locked = registerFailure();
+      locked
+        ? openModal("Account Locked", "Too many failed attempts. Locked for 20 minutes.")
+        : showAuthError("Incorrect password.");
+      return;
     }
+    localStorage.removeItem("failed_attempts");
+    localStorage.removeItem("lockout_start");
+    completeLogin(user, false);
+  } catch (err) {
+    console.error(err);
+    showAuthError("Connection error. Try again.");
+  }
 }
 
 async function handleSignUp() {
-    const user = document.getElementById("auth-username").value.trim();
-    const pass = document.getElementById("auth-password").value.trim();
-    const errorMsg = document.getElementById("auth-error");
-    const deviceId = getDeviceId();
+  const user = els.authUsername.value.trim();
+  const pass = els.authPassword.value.trim();
+  els.authError?.classList.add("hidden");
 
-    const validationError = validateInputs(user, pass);
-    if (validationError) {
-        errorMsg.textContent = "Invalid input.";
-        showModal("Invalid Input", validationError);
-        return;
-    }
+  const err = validateInputs(user, pass);
+  if (err) { openModal("Invalid Input", err); return; }
 
-    errorMsg.textContent = "Checking device...";
+  try {
+    const devId   = getDeviceId();
+    const devSnap = await get(child(ref(db), `devices/${devId}`));
+    if (devSnap.exists()) { openModal("Already Registered", `This device is registered to ${devSnap.val()}.`); return; }
 
-    try {
-        const devSnap = await get(child(ref(db), `devices/${deviceId}`));
-        if (devSnap.exists()) {
-            const owner = devSnap.val();
-            errorMsg.textContent = `Device locked.`;
-            showModal("Registration Failed", `This device is strictly registered to <b>'${owner}'</b>.<br>You cannot create another account on this device.`);
-            return;
-        }
+    const userSnap = await get(child(ref(db), `users/${user}`));
+    if (userSnap.exists()) { showAuthError("Username already taken."); return; }
 
-        const userSnap = await get(child(ref(db), `users/${user}`));
-        if (userSnap.exists()) {
-            errorMsg.textContent = "Username taken.";
-            return;
-        }
-
-        await set(ref(db, `users/${user}`), { password: pass, device_id: deviceId });
-        await set(ref(db, `devices/${deviceId}`), user);
-        
-        showSignUpSuccess(user, pass);
-
-    } catch (e) {
-        errorMsg.textContent = "Signup failed.";
-        console.error(e);
-    }
+    await set(ref(db, `users/${user}`), { password: pass, device_id: devId });
+    await set(ref(db, `devices/${devId}`), user);
+    completeLogin(user, false);
+  } catch (err2) {
+    console.error(err2);
+    showAuthError("Signup failed. Try again.");
+  }
 }
 
-// 🌀 ANIMATED GUEST LOGIN
-function handleGuestLogin() {
-    toggleLoader(true);
-    setTimeout(() => {
-        completeLogin("Guest", true);
-        toggleLoader(false);
-    }, 1500);
-}
+function handleGuestLogin() { completeLogin("Guest", true); }
 
 function completeLogin(username, guestMode) {
-    currentUser = username;
-    isGuest = guestMode;
-    sessionStorage.setItem('currentUser', username);
-    sessionStorage.setItem('isGuest', guestMode);
-    document.getElementById("auth-modal").classList.add("hidden");
-    initializeAppState();
+  currentUser = username;
+  isGuest     = guestMode;
+  sessionStorage.setItem("currentUser", username);
+  sessionStorage.setItem("isGuest", String(guestMode));
+  if (els.authModal) els.authModal.classList.add("hidden");
+  syncProfileUI();
+  initializeAppState();
 }
 
 function logout() {
-    showConfirm("Log Out?", "Are you sure you want to log out?", () => {
-        toggleLoader(true);
-        setTimeout(() => {
-            sessionStorage.removeItem('currentUser');
-            sessionStorage.removeItem('isGuest');
-            currentUser = null;
-            isGuest = false;
-            currentSessionId = null;
-            chatSessions = {};
-            firebaseLoadedOnce = false;
+  openModal("Sign out?", "Do you want to sign out from ChestGuard AI?", () => {
+    currentUser = null; isGuest = false; currentSessionId = null;
+    selectedImageB64 = null; selectedModelId = null;
+    chatSessions = {}; messageCache = {}; fbLoadedOnce = false;
+    sessionStorage.clear();
+    if (els.authUsername) els.authUsername.value = "";
+    if (els.authPassword) els.authPassword.value = "";
+    if (els.messagesContainer) els.messagesContainer.innerHTML = "";
+    if (els.chatList) els.chatList.innerHTML = "";
+    clearSelectedImage();
+    showHeroState();
+    syncProfileUI();
+    if (els.authModal) els.authModal.classList.remove("hidden");
+    closeSidebar();
+    closeSettings();
+  });
+}
 
-            document.getElementById("chat-list").innerHTML = "";
-            document.getElementById("chat-box").innerHTML = "";
-            document.getElementById("auth-username").value = "";
-            document.getElementById("auth-password").value = "";
-            
-            document.getElementById("auth-modal").classList.remove("hidden");
-            document.getElementById("sidebar").classList.remove("mobile-open");
+// ════════════════════════════════════════════════════
+// PROFILE UI SYNC
+// ════════════════════════════════════════════════════
+function syncProfileUI() {
+  const display = currentUser || "Guest";
+  const badge   = display.charAt(0).toUpperCase();
+  const mode    = isGuest ? "Guest mode" : isPrivateMode ? "Private mode" : "Signed in";
 
-            toggleLoader(false);
-        }, 1500);
+  [els.profileAvatar, els.settingsAvatar, els.topbarAvatarBtn].forEach(el => { if (el) el.textContent = badge; });
+  if (els.profileName)       els.profileName.textContent    = display;
+  if (els.settingsUserName)  els.settingsUserName.textContent = display;
+  if (els.profileMode)       els.profileMode.textContent    = mode;
+  if (els.settingsUserMode)  els.settingsUserMode.textContent = mode;
+}
+
+// ════════════════════════════════════════════════════
+// SIDEBAR
+// ════════════════════════════════════════════════════
+function openSidebar() {
+  if (!els.sidebar) return;
+  els.sidebar.classList.remove("-translate-x-full");
+  if (els.sidebarScrim) els.sidebarScrim.classList.remove("hidden");
+}
+function closeSidebar() {
+  if (!els.sidebar) return;
+  els.sidebar.classList.add("-translate-x-full");
+  if (els.sidebarScrim) els.sidebarScrim.classList.add("hidden");
+}
+
+// ════════════════════════════════════════════════════
+// SETTINGS PANEL
+// ════════════════════════════════════════════════════
+function openSettings() {
+  if (!els.settingsPanel) return;
+  els.settingsPanel.classList.remove("hidden");
+  els.settingsPanel.classList.remove("settings-exit");
+  els.settingsPanel.classList.add("settings-enter");
+  renderSettingsModels();
+}
+function closeSettings() {
+  if (!els.settingsPanel) return;
+  els.settingsPanel.classList.remove("settings-enter");
+  els.settingsPanel.classList.add("settings-exit");
+  setTimeout(() => els.settingsPanel.classList.add("hidden"), 260);
+}
+
+// ════════════════════════════════════════════════════
+// THEME
+// ════════════════════════════════════════════════════
+function applyTheme(isDark) {
+  document.documentElement.classList.toggle("dark", isDark);
+  if (els.themeStatusText) els.themeStatusText.textContent = isDark ? "Dark Mode" : "Light Mode";
+  localStorage.setItem("theme", isDark ? "dark" : "light");
+}
+function toggleTheme() {
+  applyTheme(!document.documentElement.classList.contains("dark"));
+}
+function initTheme() {
+  const saved = localStorage.getItem("theme");
+  applyTheme(saved !== "light"); // dark by default
+}
+
+// ════════════════════════════════════════════════════
+// APP NAME
+// ════════════════════════════════════════════════════
+function setAppName(name) {
+  const n = name.trim() || "ChestGuard AI";
+  document.title = n;
+  const titleEl = $("app-title");     if (titleEl) titleEl.textContent = n;
+  if (els.appNameDisplay) els.appNameDisplay.textContent   = n;
+  if (els.sidebarAppName) els.sidebarAppName.textContent   = n;
+  localStorage.setItem("app_name", n);
+}
+function openNameModal() {
+  if (!els.nameModal) return;
+  if (els.nameInput) els.nameInput.value = localStorage.getItem("app_name") || "ChestGuard AI";
+  els.nameModal.classList.remove("hidden");
+  els.nameInput?.focus();
+}
+function closeNameModal() {
+  if (els.nameModal) els.nameModal.classList.add("hidden");
+}
+
+// ════════════════════════════════════════════════════
+// HERO STATE
+// ════════════════════════════════════════════════════
+function showHeroState() {
+  if (!els.heroState) return;
+  els.heroState.classList.remove("hidden");
+}
+function hideHeroState() {
+  if (!els.heroState) return;
+  els.heroState.classList.add("hidden");
+}
+function updateHeroVisibility() {
+  const msgs = messageCache[currentSessionId] || [];
+  msgs.length > 0 ? hideHeroState() : showHeroState();
+}
+
+// ════════════════════════════════════════════════════
+// MODEL CATALOG
+// ════════════════════════════════════════════════════
+async function loadModelCatalog() {
+  try {
+    const res  = await fetch(`${API_BASE}/models`, { headers: { "x-auth": AUTH_TOKEN, ...NGROK_HEADER } });
+    const data = await res.json();
+    availableModels = data.models || [];
+
+    // Default to first available
+    if (!selectedModelId) {
+      const first = availableModels.find(m => m.available);
+      if (first) selectedModelId = first.id;
+    }
+    renderModelMenu();
+    syncModelTriggerUI();
+  } catch (e) {
+    console.warn("Could not load model catalog:", e);
+    availableModels = [];
+    renderModelMenu();
+  }
+}
+
+function renderModelMenu() {
+  if (!els.modelMenuList) return;
+  els.modelMenuList.innerHTML = "";
+
+  if (!availableModels.length) {
+    els.modelMenuList.innerHTML = `<p class="text-xs text-zinc-400 text-center py-6 px-4">No models loaded</p>`;
+    return;
+  }
+
+  availableModels.forEach(model => {
+    const meta      = getModelMeta(model.id);
+    const isActive  = model.id === selectedModelId;
+    const disabled  = !model.available;
+
+    const btn = document.createElement("button");
+    btn.className = `model-menu-item ${isActive ? "selected" : ""} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`;
+    btn.disabled  = disabled;
+    btn.innerHTML = `
+      <div class="model-icon-wrap" style="background:${meta.bg}">
+        <span class="material-symbols-rounded text-[18px]" style="color:${meta.color}">${meta.icon}</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="model-menu-label text-zinc-900 dark:text-zinc-100">${model.label}</p>
+        <p class="model-menu-sub text-zinc-500">${disabled ? (model.error || "Unavailable") : model.task}</p>
+      </div>
+      ${isActive ? `<span class="material-symbols-rounded text-[18px] text-teal-500">check_circle</span>` : ""}
+    `;
+    btn.addEventListener("click", () => {
+      selectedModelId = model.id;
+      syncModelTriggerUI();
+      renderModelMenu();
+      closeModelMenu();
+      syncPreviewLabel();
     });
+    els.modelMenuList.appendChild(btn);
+  });
 }
 
-// ==========================================
-// 5. MAIN APP LOGIC
-// ==========================================
-
-async function initializeAppState() {
-    chatSessions = {};
-    messageCache = {};
-    document.getElementById("chat-list").innerHTML = "";
-    document.getElementById("chat-box").innerHTML = "";
-
-    if (isGuest) {
-        currentSessionId = generateSessionId();
-        chatSessions[currentSessionId] = { name: "Guest Chat", timestamp: Date.now() };
-        messageCache[currentSessionId] = []; 
-        renderChatList();
-    } else {
-        await loadSessionsFromFirebase();
-    }
+function syncModelTriggerUI() {
+  const model = availableModels.find(m => m.id === selectedModelId);
+  if (!model) return;
+  const meta = getModelMeta(model.id);
+  if (els.selectedModelLabel) els.selectedModelLabel.textContent = model.label;
+  if (els.modelTriggerIcon) {
+    els.modelTriggerIcon.textContent = meta.icon;
+    els.modelTriggerIcon.style.color = meta.color;
+  }
+  syncPreviewLabel();
 }
 
-function toggleSidebar(e) {
-    if (e && e.stopPropagation) {
-        e.stopPropagation();
-        e.preventDefault();
-    }
-
-    const sidebar = document.getElementById("sidebar");
-    const openBtn = document.getElementById("open-sidebar-btn");
-    
-    if (window.innerWidth <= 768) {
-        sidebar.classList.toggle("mobile-open");
-    } else {
-        sidebar.classList.toggle("hidden");
-        if (sidebar.classList.contains("hidden")) {
-            openBtn.style.display = "block";
-        } else {
-            openBtn.style.display = "none";
-        }
-    }
+function syncPreviewLabel() {
+  const model = availableModels.find(m => m.id === selectedModelId);
+  if (els.previewModelLabel)
+    els.previewModelLabel.textContent = model ? `Model: ${model.label}` : "No model selected";
 }
 
-async function createNewChat(shouldSave = true) {
-    if (isSending) return;
-    currentSessionId = generateSessionId();
-    chatSessions[currentSessionId] = { name: "New Chat", timestamp: Date.now() };
-    messageCache[currentSessionId] = [];
-    renderChatList();
-    renderMessagesFromCache(currentSessionId);
-    if (shouldSave && !isGuest) await saveSessionMetaToFirebase();
-}
+function openModelMenu()  { if (els.modelMenu) els.modelMenu.classList.remove("hidden"); }
+function closeModelMenu() { if (els.modelMenu) els.modelMenu.classList.add("hidden"); }
+function toggleModelMenu(e) { e.stopPropagation(); els.modelMenu?.classList.toggle("hidden"); }
 
-async function switchChat(id) {
-    if (isSending) return;
-    if (id === currentSessionId) return;
-    currentSessionId = id;
-    updateActiveChatHighlight(id);
-    
-    // Always try to load if cache is empty
-    if (!messageCache[id] || messageCache[id].length === 0) {
-        await loadHistory(id);
-    } else {
-        renderMessagesFromCache(id);
-    }
-    if (window.innerWidth <= 768) document.getElementById("sidebar").classList.remove("mobile-open");
-}
-
-async function sendMessage(e) {
-    if (e) { e.preventDefault(); e.stopPropagation(); }
-
-    if (isSending) {
-        console.warn("⛔ BLOCKED: Wait for AI response.");
-        return;
-    }
-
-    const input = document.getElementById("msg-input");
-    const sendBtn = document.getElementById("send-btn");
-    const text = input.value.trim();
-    const hasImage = !!selectedImageBase64;
-
-    if (!text && !hasImage) return;
-
-    isSending = true;
-    input.disabled = true;
-    input.value = ""; 
-    if(sendBtn) {
-        sendBtn.classList.add("disabled");
-        sendBtn.style.pointerEvents = "none";
-    }
-
-    try {
-        const imageBase64ToSend = selectedImageBase64;
-        const userContent = text || "[Image]";
-        const userMsg = { role: "user", content: userContent, timestamp: Date.now() };
-        addMessageToUI(userContent, "user", imageBase64ToSend);
-        addToCache(currentSessionId, userMsg);
-        saveMessageToFirebase(currentSessionId, userMsg);
-
-        const loadingId = "loading-" + Date.now();
-        addMessageToUI("Thinking...", "model loading-pulse", null, loadingId);
-
-        const response = await fetch(`${API_BASE}/chat`, {
-            method: "POST",
-            headers: { 
-                "Content-Type": "application/json", 
-                "x-auth": AUTH_TOKEN,
-                "ngrok-skip-browser-warning": "true"
-            },
-            body: JSON.stringify({
-                session_id: currentSessionId,
-                message: text,
-                image_base64: imageBase64ToSend
-            })
-        });
-
-        document.getElementById(loadingId)?.remove();
-
-        if (!response.ok) throw new Error("Server Error");
-        const data = await response.json();
-
-        if (data.response) {
-            const botMsg = { role: "model", content: data.response, timestamp: Date.now() };
-            addMessageToUI(data.response, "model"); 
-            addToCache(currentSessionId, botMsg);
-            saveMessageToFirebase(currentSessionId, botMsg);
-        }
-
-        if (imageBase64ToSend) {
-            clearSelectedImage();
-        }
-
-    } catch (err) {
-        document.getElementById(loadingId)?.remove();
-        addMessageToUI("Error: " + err.message, "model");
-    } finally {
-        isSending = false;
-        input.disabled = false;
-        input.focus();
-        if(sendBtn) {
-            sendBtn.classList.remove("disabled");
-            sendBtn.style.pointerEvents = "auto";
-        }
-    }
+// ════════════════════════════════════════════════════
+// IMAGE HANDLING
+// ════════════════════════════════════════════════════
+function handleImageSelection(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    openModal("Invalid File", "Please select a valid image file (JPG, PNG, DICOM-derived images)."); return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    selectedImageB64 = reader.result;
+    if (els.previewImg) els.previewImg.src = selectedImageB64;
+    if (els.imagePreviewStrip) els.imagePreviewStrip.classList.remove("hidden");
+    syncPreviewLabel();
+  };
+  reader.onerror = () => openModal("Image Error", "Could not read the selected image.");
+  reader.readAsDataURL(file);
 }
 
 function clearSelectedImage() {
-    selectedImageBase64 = null;
-    const preview = document.getElementById("preview");
-    const imgInput = document.getElementById("img-input");
-
-    if (preview) {
-        preview.src = "";
-        preview.style.display = "none";
-    }
-    if (imgInput) {
-        imgInput.value = "";
-    }
+  selectedImageB64 = null;
+  if (els.imgInput) els.imgInput.value = "";
+  if (els.previewImg) els.previewImg.src = "";
+  if (els.imagePreviewStrip) els.imagePreviewStrip.classList.add("hidden");
 }
 
-function handleImageSelection(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-        showModal("Invalid File", "Please select a valid image file.");
-        clearSelectedImage();
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-        selectedImageBase64 = reader.result;
-        const preview = document.getElementById("preview");
-        if (preview && typeof selectedImageBase64 === "string") {
-            preview.src = selectedImageBase64;
-            preview.style.display = "block";
-        }
-    };
-    reader.onerror = () => {
-        showModal("Image Error", "Could not read the selected image.");
-        clearSelectedImage();
-    };
-
-    reader.readAsDataURL(file);
+// ════════════════════════════════════════════════════
+// CHAT SESSIONS
+// ════════════════════════════════════════════════════
+function generateSessionId() {
+  return `sess-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 }
 
-// ==========================================
-// 6. FIREBASE SYNC FUNCTIONS
-// ==========================================
-
-let firebaseLoadedOnce = false;
-
-async function loadSessionsFromFirebase() {
-    if (isGuest) return;
-    if (firebaseLoadedOnce) return; 
-    firebaseLoadedOnce = true;
-
-    try {
-        const snapshot = await get(child(ref(db), `chats/${currentUser}/meta`));
-        if (snapshot.exists()) {
-            chatSessions = snapshot.val();
-            const ids = Object.keys(chatSessions).sort((a, b) => chatSessions[b].timestamp - chatSessions[a].timestamp);
-            
-            if (ids.length > 0) {
-                currentSessionId = ids[0];
-            } else {
-                await createNewChat(false);
-                return;
-            }
-        } else {
-            await createNewChat(false);
-            return;
-        }
-        
-        renderChatList();
-        
-        // Force load history for the initial session
-        console.log("Loading history for initial session:", currentSessionId);
-        await loadHistory(currentSessionId);
-        
-    } catch (e) { console.error("Firebase Error:", e); }
-}
-
-async function saveSessionMetaToFirebase() {
-    if (isGuest) return;
-    await set(ref(db, `chats/${currentUser}/meta`), chatSessions);
-}
-
-async function saveMessageToFirebase(sessionId, msgObj) {
-    if (!USE_FIREBASE || isGuest) return;
-    try {
-        const messagesRef = child(ref(db), `chats/${currentUser}/${sessionId}/messages`);
-        const snapshot = await get(messagesRef);
-        if (snapshot.exists()) {
-            const messages = snapshot.val();
-            const msgKeys = Object.keys(messages);
-            if (msgKeys.length >= 15) {
-                const sortedKeys = msgKeys.sort((a, b) => messages[a].timestamp - messages[b].timestamp);
-                const deleteCount = (msgKeys.length + 1) - 15; 
-                for (let i = 0; i < deleteCount; i++) {
-                    await remove(child(messagesRef, sortedKeys[i]));
-                }
-            }
-        }
-        const uniqueKey = Date.now() + Math.random().toString(36).substr(2, 5);
-        await update(child(messagesRef, uniqueKey), msgObj);
-    } catch (e) { console.warn("DB Error:", e.message); }
-}
-
-async function loadHistory(sessionId) {
-    console.log("Fetching history for:", sessionId);
-    const chatBox = document.getElementById("chat-box");
-    // Only clear if switching sessions
-    if(currentSessionId !== sessionId && chatBox) chatBox.innerHTML = "";
-    
-    messageCache[sessionId] = [];
-    if (isGuest) return;
-
-    try {
-        const snapshot = await get(child(ref(db), `chats/${currentUser}/${sessionId}/messages`));
-        if (snapshot.exists()) {
-            const msgs = snapshot.val();
-            const sortedMsgs = Object.values(msgs).sort((a, b) => a.timestamp - b.timestamp);
-            
-            // Clear again to be safe before rendering
-            if(chatBox) chatBox.innerHTML = "";
-            
-            sortedMsgs.forEach(msg => {
-                addToCache(sessionId, msg);
-                addMessageToUI(msg.content, msg.role);
-            });
-            console.log("History loaded successfully.");
-        } else {
-            console.log("No messages found in Firebase for this session.");
-        }
-    } catch (e) { console.error("Load History Error:", e); }
-}
-
-// ==========================================
-// 7. UTILS & UI HELPERS
-// ==========================================
-
-function startRenaming(id) {
-    const item = document.querySelector(`.chat-item[data-id="${id}"]`);
-    if (!item) return;
-    const currentName = chatSessions[id].name;
-    const container = item.querySelector(".chat-name-container");
-    item.classList.add("editing");
-    container.innerHTML = `
-        <div style="display:flex; width:100%; gap:5px;">
-            <input id="rename-${id}" type="text" placeholder="${currentName}" 
-                   onkeydown="if(event.key==='Enter') finishRenaming('${id}', this.value)"
-                     style="flex:1; padding:4px; border-radius:4px; border:1px solid #ffffff; color:#000000;">
-                 <button onclick="finishRenaming('${id}', document.getElementById('rename-${id}').value)" style="color:#ffffff; background:none; border:none; cursor:pointer;">✔</button>
-                 <button onclick="renderChatList()" style="color:#b8b8b8; background:none; border:none; cursor:pointer;">✖</button>
-        </div>
-    `;
-    setTimeout(() => document.getElementById(`rename-${id}`).focus(), 50);
-}
-
-function finishRenaming(id, newName) {
-    if (newName && newName.trim()) {
-        chatSessions[id].name = newName.trim();
-        saveSessionMetaToFirebase(); 
-    }
-    renderChatList();
-}
-
-async function deleteChat(id) {
-    showConfirm("Delete Chat?", "Are you sure you want to delete this chat? This cannot be undone.", async () => {
-        delete chatSessions[id];
-        delete messageCache[id];
-        if (!isGuest) {
-            await remove(ref(db, `chats/${currentUser}/${id}`)); 
-            await saveSessionMetaToFirebase(); 
-        }
-        if (id === currentSessionId) {
-            const remaining = Object.keys(chatSessions);
-            if (remaining.length > 0) switchChat(remaining[0]);
-            else createNewChat();
-        } else {
-            renderChatList();
-        }
-    });
+function formatTimestamp(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 function renderChatList() {
-    const list = document.getElementById("chat-list");
-    list.innerHTML = "";
-    Object.keys(chatSessions)
-        .sort((a,b) => chatSessions[b].timestamp - chatSessions[a].timestamp)
-        .forEach(id => {
-            const div = document.createElement("div");
-            div.className = `chat-item ${id === currentSessionId ? 'active' : ''}`;
-            div.dataset.id = id;
-            div.onclick = (e) => {
-                if(!e.target.closest('button') && !e.target.closest('input')) switchChat(id);
-            };
-            div.innerHTML = `
-                <div class="chat-name-container"><span class="chat-name-text" ondblclick="startRenaming('${id}')">${chatSessions[id].name}</span></div>
-                <div class="chat-actions">
-                    <button onclick="startRenaming('${id}')">✏️</button>
-                    <button onclick="deleteChat('${id}')">🗑️</button>
-                </div>`;
-            list.appendChild(div);
-        });
-}
+  if (!els.chatList) return;
+  const query = (els.chatSearch?.value || "").trim().toLowerCase();
+  const sorted = Object.entries(chatSessions)
+    .filter(([, m]) => !query || (m.name || "").toLowerCase().includes(query))
+    .sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0));
 
-function renderMessagesFromCache(sessionId) {
-    if (sessionId !== currentSessionId) return;
-    const chatBox = document.getElementById("chat-box");
-    chatBox.innerHTML = "";
-    if (!messageCache[sessionId]) return;
-    messageCache[sessionId].forEach(msg => {
-        addMessageToUI(msg.content, msg.role);
+  els.chatList.innerHTML = "";
+
+  if (!sorted.length) {
+    els.chatList.innerHTML = `<p class="text-xs text-zinc-400 text-center py-4 px-2">No conversations yet</p>`;
+    return;
+  }
+
+  sorted.forEach(([id, meta]) => {
+    const isActive = id === currentSessionId;
+    const item = document.createElement("div");
+    item.className = `chat-item ${isActive ? "active" : ""}`;
+    item.innerHTML = `
+      <div class="chat-item-text">
+        <p class="chat-item-title text-zinc-800 dark:text-zinc-200">${escapeHtml(meta.name || "New analysis")}</p>
+        <p class="chat-item-time">${formatTimestamp(meta.timestamp)}</p>
+      </div>
+      <button class="delete-chat-btn w-6 h-6 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-400 hover:text-red-500 transition-all flex-shrink-0" data-id="${id}">
+        <span class="material-symbols-rounded text-[15px]">delete</span>
+      </button>
+    `;
+    item.addEventListener("click", e => {
+      if (e.target.closest(".delete-chat-btn")) {
+        const cid = e.target.closest(".delete-chat-btn").dataset.id;
+        openModal("Delete Chat?", `Delete "${meta.name || "this chat"}"?`, () => deleteChat(cid));
+        return;
+      }
+      switchChat(id);
     });
+
+    // Show delete on hover
+    item.addEventListener("mouseenter", () => item.querySelector(".delete-chat-btn")?.classList.remove("opacity-0"));
+    item.addEventListener("mouseleave", () => item.querySelector(".delete-chat-btn")?.classList.add("opacity-0"));
+
+    els.chatList.appendChild(item);
+  });
 }
 
-function addMessageToUI(text, role, img, id) {
-    const box = document.getElementById("chat-box");
-    if (!box) return;
-    const div = document.createElement("div");
-    div.className = `message ${role}`;
-    if (id) div.id = id;
+async function createNewChat(shouldSave = true) {
+  if (isSending) return;
+  const id = generateSessionId();
+  currentSessionId = id;
+  sessionStorage.setItem("currentSessionId", id);
+  chatSessions[id] = { name: "New analysis", timestamp: Date.now() };
+  messageCache[id] = [];
+  renderChatList();
+  renderMessages(id);
+  showHeroState();
+  clearSelectedImage();
+  if (els.msgInput) els.msgInput.value = "";
 
-    if (img) {
-        const imageEl = document.createElement("img");
-        imageEl.src = img;
-        imageEl.alt = "Sent image";
-        imageEl.style.maxWidth = "220px";
-        imageEl.style.maxHeight = "220px";
-        imageEl.style.borderRadius = "10px";
-        imageEl.style.display = "block";
-        div.appendChild(imageEl);
-
-        if (text) {
-            const captionEl = document.createElement("div");
-            captionEl.textContent = text;
-            captionEl.style.marginTop = "8px";
-            div.appendChild(captionEl);
-        }
-    } else {
-        div.textContent = text;
-    }
-
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
+  if (shouldSave && !isGuest) await saveSessionMeta();
+  closeSidebar();
 }
 
-function addToCache(sid, msg) {
-    if (!messageCache[sid]) messageCache[sid] = [];
-    messageCache[sid].push(msg);
+async function switchChat(id) {
+  if (isSending || id === currentSessionId) { closeSidebar(); return; }
+  currentSessionId = id;
+  sessionStorage.setItem("currentSessionId", id);
+  clearSelectedImage();
+  if (!messageCache[id]) await loadHistory(id);
+  else renderMessages(id);
+  renderChatList();
+  closeSidebar();
 }
 
-function updateActiveChatHighlight(id) {
-    document.querySelectorAll('.chat-item').forEach(e => e.classList.remove('active'));
-    document.querySelector(`.chat-item[data-id="${id}"]`)?.classList.add('active');
+async function deleteChat(id) {
+  delete chatSessions[id];
+  delete messageCache[id];
+  if (!isGuest && USE_FIREBASE && currentUser) {
+    try {
+      await remove(ref(db, `chats/${currentUser}/${id}`));
+      await saveSessionMeta();
+    } catch (e) { console.warn(e); }
+  }
+  if (id === currentSessionId) {
+    const remaining = Object.keys(chatSessions);
+    remaining.length ? await switchChat(remaining[0]) : await createNewChat();
+  } else {
+    renderChatList();
+  }
 }
 
-function generateSessionId() { return "sess-" + Math.random().toString(36).substr(2, 9); }
+// ════════════════════════════════════════════════════
+// FIREBASE PERSISTENCE
+// ════════════════════════════════════════════════════
+async function saveSessionMeta() {
+  if (isGuest || !USE_FIREBASE || !currentUser) return;
+  try { await set(ref(db, `chats/${currentUser}/meta`), chatSessions); } catch (e) { console.warn(e); }
+}
 
-// ==========================================
-// 8. INITIALIZATION
-// ==========================================
+async function saveMessageToFirebase(sessionId, message) {
+  if (isGuest || !USE_FIREBASE || !currentUser) return;
+  const key = `msg-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+  try { await set(ref(db, `chats/${currentUser}/${sessionId}/messages/${key}`), message); } catch (e) { console.warn(e); }
+}
 
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("🚀 App Initialized");
+async function loadSessionsFromFirebase() {
+  if (isGuest || fbLoadedOnce) return;
+  fbLoadedOnce = true;
+  try {
+    const snap = await get(child(ref(db), `chats/${currentUser}/meta`));
+    if (snap.exists()) chatSessions = snap.val() || {};
+    const ids = Object.keys(chatSessions).sort((a,b) => (chatSessions[b].timestamp||0) - (chatSessions[a].timestamp||0));
+    if (!ids.length) { await createNewChat(false); return; }
 
-    // 🌀 PRELOADER LOGIC
-    const preloader = document.getElementById('preloader');
-    if (preloader) {
-        window.addEventListener('load', () => {
-            setTimeout(() => toggleLoader(false), 1500); 
-        });
-        setTimeout(() => toggleLoader(false), 3000); // Fallback
+    currentSessionId = (currentSessionId && chatSessions[currentSessionId]) ? currentSessionId : ids[0];
+    sessionStorage.setItem("currentSessionId", currentSessionId);
+    renderChatList();
+    await loadHistory(currentSessionId);
+  } catch (e) { console.error("Firebase load failed:", e); }
+}
+
+async function loadHistory(sessionId) {
+  messageCache[sessionId] = [];
+  if (isGuest) { renderMessages(sessionId); return; }
+  try {
+    const snap = await get(child(ref(db), `chats/${currentUser}/${sessionId}/messages`));
+    const msgs = snap.exists() ? Object.values(snap.val()) : [];
+    msgs.sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
+    messageCache[sessionId] = msgs;
+    renderMessages(sessionId);
+  } catch (e) {
+    console.error("History load failed:", e);
+    renderMessages(sessionId);
+  }
+}
+
+// ════════════════════════════════════════════════════
+// RENDER MESSAGES
+// ════════════════════════════════════════════════════
+function renderMessages(sessionId) {
+  if (!els.messagesContainer) return;
+  els.messagesContainer.innerHTML = "";
+  (messageCache[sessionId] || []).forEach(m => appendMessageBubble(m));
+  updateHeroVisibility();
+  scrollToBottom();
+}
+
+function appendMessageBubble(message, animate = false) {
+  if (!els.messagesContainer) return null;
+  const isUser = message.role === "user";
+
+  const wrapper = document.createElement("div");
+  wrapper.className = `flex w-full ${isUser ? "justify-end" : "justify-start"} ${animate ? "message-bubble" : ""}`;
+
+  if (isUser) {
+    // User message — right aligned bubble
+    const inner = document.createElement("div");
+    inner.className = "flex flex-col gap-2 max-w-[80%] md:max-w-[65%]";
+
+    // X-ray image (if any)
+    if (message.image) {
+      const wrap = document.createElement("div");
+      wrap.className = "xray-preview-wrap";
+      const img = document.createElement("img");
+      img.src = message.image;
+      img.alt = "Uploaded X-ray";
+      wrap.appendChild(img);
+      inner.appendChild(wrap);
     }
 
-    // 1. CHECK LOGIN
-    if (currentUser) {
-        document.getElementById("auth-modal").classList.add("hidden");
-        initializeAppState();
-    } else {
-        document.getElementById("auth-modal").classList.remove("hidden");
+    // Text bubble
+    if (message.content) {
+      const bubble = document.createElement("div");
+      bubble.className = "user-bubble";
+      bubble.textContent = message.content;
+      inner.appendChild(bubble);
     }
 
-    // 2. SETUP SEND BUTTON
-    const oldBtn = document.getElementById("send-btn");
-    if (oldBtn) {
-        const newBtn = oldBtn.cloneNode(true);
-        oldBtn.parentNode.replaceChild(newBtn, oldBtn);
-        newBtn.addEventListener("click", (e) => {
-            e.preventDefault(); 
-            e.stopImmediatePropagation();
-            if (isSending) return; // Guard
-            sendMessage(e);
-        });
+    wrapper.appendChild(inner);
+  } else {
+    // Assistant message — left aligned
+    const inner = document.createElement("div");
+    inner.className = "flex gap-3 max-w-[90%] md:max-w-[75%]";
+
+    // Avatar
+    const avatar = document.createElement("div");
+    avatar.className = "w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-cyan-600 flex items-center justify-center flex-shrink-0 mt-0.5";
+    avatar.innerHTML = `<img src="/static/MYLOGO.png" alt="AI" class="w-5 h-5 rounded-full object-cover">`;
+
+    const content = document.createElement("div");
+    content.className = "flex flex-col gap-1 min-w-0";
+
+    // Medical result badge
+    if (message.medicalResult) {
+      const mr  = message.medicalResult;
+      const isPositive = mr.label && !mr.label.toLowerCase().startsWith("normal");
+      const badgeClass = isPositive ? "positive" : "negative";
+      const conf = mr.confidence_percent || "";
+
+      const badge = document.createElement("div");
+      badge.className = `medical-badge ${badgeClass}`;
+      badge.innerHTML = `
+        <span class="material-symbols-rounded text-[14px]">${isPositive ? "warning" : "check_circle"}</span>
+        <span>${mr.model_label}: ${mr.label}</span>
+        ${conf ? `<span class="opacity-70">· ${conf}</span>` : ""}
+      `;
+      content.appendChild(badge);
+
+      // Confidence bar
+      if (mr.confidence !== undefined) {
+        const pct = Math.round(mr.confidence * 100);
+        const barTrack = document.createElement("div");
+        barTrack.className = "confidence-bar-track";
+        const barFill = document.createElement("div");
+        barFill.className = "confidence-bar-fill";
+        barFill.style.width = "0%";
+        barTrack.appendChild(barFill);
+        content.appendChild(barTrack);
+        setTimeout(() => { barFill.style.width = `${pct}%`; }, 150);
+      }
     }
 
-    // 3. SETUP INPUT KEY LISTENER
-    const msgInput = document.getElementById("msg-input");
-    if (msgInput) {
-        const newInput = msgInput.cloneNode(true);
-        msgInput.parentNode.replaceChild(newInput, msgInput);
-        newInput.id = "msg-input";
-        newInput.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && !e.shiftKey) { 
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                if (isSending) return; // Guard
-                sendMessage(e);
-            }
-        });
+    // Text content
+    const txt = document.createElement("div");
+    txt.className = "assistant-bubble";
+    txt.innerHTML = formatAssistantText(message.content || "");
+    content.appendChild(txt);
+
+    inner.appendChild(avatar);
+    inner.appendChild(content);
+    wrapper.appendChild(inner);
+  }
+
+  els.messagesContainer.appendChild(wrapper);
+  return wrapper;
+}
+
+// ── Inline escaper ──────────────────────────────────────────────
+function escText(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// ── Inline markdown (bold, italic, code, links) ──────────────────
+function formatInline(raw) {
+  return escText(raw)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g,     "<em>$1</em>")
+    .replace(/`([^`]+)`/g,     '<code class="inline-code">$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">$1</a>');
+}
+
+// ── Block markdown renderer ──────────────────────────────────────
+function formatAssistantText(text) {
+  if (!text) return "";
+  const lines  = text.split("\n");
+  let html     = "";
+  let inList   = false;
+  let inOl     = false;
+
+  const closeList = () => {
+    if (inList) { html += "</ul>"; inList = false; }
+    if (inOl)   { html += "</ol>"; inOl   = false; }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Headings
+    if (trimmed.startsWith("### ")) {
+      closeList();
+      html += `<h3 class="font-semibold text-sm mt-3 mb-1 text-zinc-900 dark:text-zinc-100">${formatInline(trimmed.slice(4))}</h3>`;
+      continue;
+    }
+    if (trimmed.startsWith("## ")) {
+      closeList();
+      html += `<h2 class="font-bold text-base mt-4 mb-1 text-zinc-900 dark:text-zinc-100">${formatInline(trimmed.slice(3))}</h2>`;
+      continue;
+    }
+    if (trimmed.startsWith("# ")) {
+      closeList();
+      html += `<h1 class="font-bold text-lg mt-4 mb-2 text-zinc-900 dark:text-zinc-100">${formatInline(trimmed.slice(2))}</h1>`;
+      continue;
     }
 
-    const imgInput = document.getElementById("img-input");
-    if (imgInput) {
-        imgInput.addEventListener("change", handleImageSelection);
+    // Horizontal rule
+    if (/^-{3,}$/.test(trimmed) || /^\*{3,}$/.test(trimmed)) {
+      closeList();
+      html += '<hr class="border-zinc-200 dark:border-zinc-700 my-3">';
+      continue;
     }
 
-    // 4. SETUP SIDEBAR BUTTONS
-    const openSidebarBtn = document.getElementById("open-sidebar-btn");
-    if (openSidebarBtn) {
-        openSidebarBtn.addEventListener("click", (e) => toggleSidebar(e));
+    // Unordered list
+    if (/^[*\-] /.test(trimmed)) {
+      if (inOl) { html += "</ol>"; inOl = false; }
+      if (!inList) { html += '<ul class="list-disc ml-5 my-1.5 space-y-0.5">'; inList = true; }
+      html += `<li>${formatInline(trimmed.slice(2))}</li>`;
+      continue;
     }
 
-    const closeSidebarBtn = document.getElementById("close-sidebar-btn");
-    if (closeSidebarBtn) {
-        closeSidebarBtn.addEventListener("click", (e) => toggleSidebar(e));
+    // Ordered list
+    const olMatch = trimmed.match(/^(\d+)\.\s+(.+)/);
+    if (olMatch) {
+      if (inList) { html += "</ul>"; inList = false; }
+      if (!inOl)  { html += '<ol class="list-decimal ml-5 my-1.5 space-y-0.5">'; inOl = true; }
+      html += `<li>${formatInline(olMatch[2])}</li>`;
+      continue;
     }
 
-    const newChatBtn = document.getElementById("new-chat-btn");
-    if (newChatBtn) {
-        newChatBtn.addEventListener("click", () => createNewChat());
+    // Blank line
+    if (trimmed === "") {
+      closeList();
+      html += '<div class="h-2"></div>';
+      continue;
     }
 
-    const logoutBtn = document.getElementById("logout-btn");
-    if (logoutBtn) {
-        logoutBtn.addEventListener("click", (e) => {
-            e.preventDefault();
-            logout();
-        });
-    }
+    // Normal paragraph line
+    closeList();
+    html += `<p class="leading-relaxed">${formatInline(trimmed)}</p>`;
+  }
 
-    // 5. MOBILE AUTO-SCROLL
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', () => {
-            const chatBox = document.getElementById("chat-box");
-            if (chatBox) chatBox.scrollTo({ top: chatBox.scrollHeight, behavior: 'smooth' });
-            if (document.activeElement.tagName === "TEXTAREA") {
-                document.activeElement.scrollIntoView({ block: "center", behavior: "smooth" });
-            }
-        });
-    }
+  closeList();
+  return html || `<p>${escText(text)}</p>`;
+}
 
-    // 6. OUTSIDE CLICK (Close Sidebar on Mobile)
-    document.addEventListener('click', (e) => {
-        const sidebar = document.getElementById("sidebar");
-        
-        if (window.innerWidth <= 768 && sidebar.classList.contains("mobile-open")) {
-            if (!sidebar.contains(e.target)) {
-                sidebar.classList.remove("mobile-open");
-            }
-        }
+function createThinkingBubble() {
+  const wrapper = document.createElement("div");
+  wrapper.className = "flex w-full justify-start message-bubble";
+  wrapper.innerHTML = `
+    <div class="flex gap-3">
+      <div class="w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-cyan-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <img src="/static/MYLOGO.png" alt="AI" class="w-5 h-5 rounded-full object-cover">
+      </div>
+      <div class="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-2xl px-4 py-3">
+        <div class="typing-dot w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500"></div>
+        <div class="typing-dot w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500"></div>
+        <div class="typing-dot w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500"></div>
+      </div>
+    </div>
+  `;
+  els.messagesContainer?.appendChild(wrapper);
+  scrollToBottom();
+  return wrapper;
+}
+
+function scrollToBottom() {
+  if (els.chatBox) els.chatBox.scrollTop = els.chatBox.scrollHeight;
+}
+
+// ════════════════════════════════════════════════════
+// SEND MESSAGE
+// ════════════════════════════════════════════════════
+async function sendMessage(e) {
+  e?.preventDefault();
+  if (isSending || !currentSessionId) return;
+
+  const text     = (els.msgInput?.value || "").trim();
+  const hasImage = !!selectedImageB64;
+  if (!text && !hasImage) return;
+
+  if (hasImage && !selectedModelId) {
+    openModal("Select a Model", "Please select one of the medical AI models before uploading a chest X-ray for analysis.");
+    return;
+  }
+
+  isSending = true;
+  if (els.sendBtn) els.sendBtn.disabled = true;
+
+  const imageToSend = selectedImageB64;
+
+  // Build user message
+  const userMsg = {
+    role: "user",
+    content: text || (imageToSend ? "Please analyze this chest X-ray." : ""),
+    image: imageToSend,
+    timestamp: Date.now(),
+  };
+
+  // Update cache & UI
+  if (!messageCache[currentSessionId]) messageCache[currentSessionId] = [];
+  messageCache[currentSessionId].push(userMsg);
+  appendMessageBubble(userMsg, true);
+  hideHeroState();
+
+  // Update session name
+  if (!chatSessions[currentSessionId]) chatSessions[currentSessionId] = { name: "New analysis", timestamp: Date.now() };
+  if (chatSessions[currentSessionId].name === "New analysis") {
+    const modelLabel = availableModels.find(m => m.id === selectedModelId)?.label || "";
+    chatSessions[currentSessionId].name = (text || (modelLabel ? `${modelLabel} analysis` : "Image analysis")).slice(0, 45);
+  }
+  chatSessions[currentSessionId].timestamp = Date.now();
+  renderChatList();
+
+  // Clear input
+  if (els.msgInput) { els.msgInput.value = ""; autoResize(); }
+  clearSelectedImage();
+
+  // Save to firebase
+  await saveSessionMeta();
+  await saveMessageToFirebase(currentSessionId, userMsg);
+
+  // Show thinking
+  const thinkEl = createThinkingBubble();
+
+  try {
+    const resp = await fetch(`${API_BASE}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-auth": AUTH_TOKEN, ...NGROK_HEADER },
+      body: JSON.stringify({
+        session_id:     currentSessionId,
+        message:        text,
+        image_base64:   imageToSend,
+        selected_model: selectedModelId,
+      }),
     });
+
+    thinkEl?.remove();
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || "Server error");
+
+    const assistantMsg = {
+      role: "assistant",
+      content: data.response,
+      medicalResult: data.medical_result || null,
+      timestamp: Date.now(),
+    };
+    messageCache[currentSessionId].push(assistantMsg);
+    appendMessageBubble(assistantMsg, true);
+    await saveMessageToFirebase(currentSessionId, assistantMsg);
+
+  } catch (err) {
+    thinkEl?.remove();
+    const errMsg = {
+      role: "assistant",
+      content: `⚠️ Error: ${err.message}.\n\nPlease make sure the server is running and Ollama is available.`,
+      timestamp: Date.now(),
+    };
+    messageCache[currentSessionId].push(errMsg);
+    appendMessageBubble(errMsg, true);
+  } finally {
+    isSending = false;
+    if (els.sendBtn) els.sendBtn.disabled = false;
+    scrollToBottom();
+  }
+}
+
+// ════════════════════════════════════════════════════
+// TEXTAREA AUTO-RESIZE
+// ════════════════════════════════════════════════════
+function autoResize() {
+  if (!els.msgInput) return;
+  els.msgInput.style.height = "auto";
+  const maxH = 160; // ~7 lines max
+  const newH = Math.min(els.msgInput.scrollHeight, maxH);
+  els.msgInput.style.height = `${newH}px`;
+  els.msgInput.style.overflowY = els.msgInput.scrollHeight > maxH ? "auto" : "hidden";
+}
+
+// ════════════════════════════════════════════════════
+// SETTINGS — MODEL STATUS
+// ════════════════════════════════════════════════════
+function renderSettingsModels() {
+  if (!els.settingsModelStatus) return;
+  if (!availableModels.length) {
+    els.settingsModelStatus.innerHTML = `<p class="text-xs text-zinc-400 text-center py-2">Models not loaded</p>`;
+    return;
+  }
+  els.settingsModelStatus.innerHTML = availableModels.map(m => {
+    const meta = getModelMeta(m.id);
+    return `
+      <div class="flex items-center gap-3 py-1.5">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:${meta.bg}">
+          <span class="material-symbols-rounded text-[15px]" style="color:${meta.color}">${meta.icon}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium truncate">${m.label}</p>
+          <p class="text-xs text-zinc-400 truncate">${m.available ? m.task : (m.error || "Unavailable")}</p>
+        </div>
+        <div class="model-status-dot ${m.available ? "online" : "offline"}"></div>
+      </div>
+    `;
+  }).join('<div class="h-px bg-zinc-100 dark:bg-zinc-800 my-1"></div>');
+}
+
+// ════════════════════════════════════════════════════
+// UTILITIES
+// ════════════════════════════════════════════════════
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════
+async function initializeAppState() {
+  await loadModelCatalog();
+  if (isGuest) {
+    if (!currentSessionId) await createNewChat(false);
+    else {
+      if (!chatSessions[currentSessionId]) chatSessions[currentSessionId] = { name: "New analysis", timestamp: Date.now() };
+      if (!messageCache[currentSessionId]) messageCache[currentSessionId] = [];
+      renderChatList();
+      renderMessages(currentSessionId);
+    }
+  } else {
+    await loadSessionsFromFirebase();
+  }
+  hidePreloader();
+}
+
+// ════════════════════════════════════════════════════
+// EVENT SETUP
+// ════════════════════════════════════════════════════
+function setupEvents() {
+  // Auth
+  $("login-btn")?.addEventListener("click",  handleLogin);
+  $("signup-btn")?.addEventListener("click", handleSignUp);
+  $("guest-btn")?.addEventListener("click",  handleGuestLogin);
+
+  // Enter key on password
+  els.authPassword?.addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
+  els.authUsername?.addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
+
+  // Logout
+  els.logoutBtn?.addEventListener("click", logout);
+
+  // New Chat
+  els.sidebarNewChatBtn?.addEventListener("click", () => createNewChat());
+  els.newChatIconBtn?.addEventListener("click",    () => createNewChat());
+
+  // Sidebar
+  $("open-sidebar-btn")?.addEventListener("click",         openSidebar);
+  $("mobile-sidebar-close")?.addEventListener("click",     closeSidebar);
+  els.sidebarScrim?.addEventListener("click",              closeSidebar);
+
+  // Settings
+  els.openSettingsBtn = $("settings-open-btn");
+  els.openSettingsBtn?.addEventListener("click",            openSettings);
+  els.topbarAvatarBtn?.addEventListener("click",            openSettings);
+  $("settings-close-btn")?.addEventListener("click",       closeSettings);
+
+  // Theme
+  els.themeToggleBtn?.addEventListener("click", toggleTheme);
+
+  // App Name
+  els.changeNameBtn?.addEventListener("click", openNameModal);
+  $("name-save-btn")?.addEventListener("click", () => { setAppName(els.nameInput?.value || ""); closeNameModal(); });
+  $("name-cancel-btn")?.addEventListener("click", closeNameModal);
+  els.nameInput?.addEventListener("keydown", e => { if (e.key === "Enter") { setAppName(els.nameInput.value); closeNameModal(); } });
+
+  // Clear History
+  els.clearHistoryBtn?.addEventListener("click", () => {
+    openModal("Clear History", "Are you sure you want to delete all conversations? This cannot be undone.", async () => {
+      const ids = Object.keys(chatSessions);
+      chatSessions = {};
+      messageCache = {};
+      if (!isGuest && USE_FIREBASE && currentUser) {
+        try {
+          for (const id of ids) await remove(ref(db, `chats/${currentUser}/${id}`));
+          await saveSessionMeta();
+        } catch(e) { console.warn(e); }
+      }
+      renderChatList();
+      await createNewChat();
+    });
+  });
+
+  // Model selector
+  els.modelTrigger?.addEventListener("click", toggleModelMenu);
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".model-picker")) closeModelMenu();
+  });
+
+  // Attach / Upload
+  els.attachBtn?.addEventListener("click", () => els.imgInput?.click());
+  els.imgInput?.addEventListener("change", handleImageSelection);
+  els.removeImageBtn?.addEventListener("click", clearSelectedImage);
+
+  // Send
+  els.sendBtn?.addEventListener("click", sendMessage);
+  els.msgInput?.addEventListener("input", autoResize);
+  els.msgInput?.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  // Search
+  els.chatSearch?.addEventListener("input", renderChatList);
+
+  // Modal
+  els.modalCancelBtn?.addEventListener("click", closeModal);
+  $("custom-modal")?.addEventListener("click", e => { if (e.target === $("custom-modal")) closeModal(); });
+  $("name-modal")?.addEventListener("click", e => { if (e.target === $("name-modal")) closeNameModal(); });
+
+  // Private Mode
+  els.privateModeBtnTop?.addEventListener("click", togglePrivateMode);
+  els.privateModeBtnChip?.addEventListener("click", togglePrivateMode);
+
+  // Quick prompts
+  document.querySelectorAll(".quick-prompt").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const title = btn.querySelector(".font-medium")?.textContent || "";
+      if (els.msgInput) { els.msgInput.value = title; autoResize(); els.msgInput.focus(); }
+    });
+  });
+}
+
+function togglePrivateMode() {
+  isPrivateMode = !isPrivateMode;
+  const chip = els.privateModeBtnChip;
+  if (chip) { isPrivateMode ? chip.classList.remove("hidden") : chip.classList.add("hidden"); }
+  syncProfileUI();
+  openModal(
+    isPrivateMode ? "Private Mode On" : "Private Mode Off",
+    isPrivateMode
+      ? "Your messages will not be saved to Firebase in this session."
+      : "Chat history will now be saved as usual.",
+  );
+}
+
+// ════════════════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════════════════
+document.addEventListener("DOMContentLoaded", async () => {
+  bindElements();
+  setupEvents();
+  initTheme();
+
+  // Restore saved app name
+  const savedName = localStorage.getItem("app_name");
+  if (savedName) setAppName(savedName);
+
+  syncProfileUI();
+
+  if (currentUser) {
+    if (els.authModal) els.authModal.classList.add("hidden");
+    await initializeAppState();
+  } else {
+    // Show auth after a short delay (nice UX)
+    setTimeout(() => {
+      hidePreloader();
+      if (els.authModal) els.authModal.classList.remove("hidden");
+    }, 1000);
+  }
 });
 
-// ==========================================
-// 9. EXPORTS
-// ==========================================
-window.handleLogin = handleLogin;
-window.handleSignUp = handleSignUp;
-window.handleGuestLogin = handleGuestLogin;
-window.createNewChat = createNewChat;
-window.switchChat = switchChat;
-window.sendMessage = sendMessage;
-window.toggleSidebar = toggleSidebar; 
-window.startRenaming = startRenaming;
-window.finishRenaming = finishRenaming;
-window.deleteChat = deleteChat;
+// Expose globalally for inline onclick="" fallbacks
 window.closeModal = closeModal;
-window.API_BASE = API_BASE;
-window.AUTH_TOKEN = AUTH_TOKEN;
