@@ -3,54 +3,54 @@
 // Full Grok-style UI with Firebase auth, medical model integration
 // ═══════════════════════════════════════════════════════════════
 
-import { initializeApp }                            from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, set, get, child, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 // ── Firebase Config ──────────────────────────────────────────────
 const firebaseConfig = {
-  apiKey:            "AIzaSyDUjEEGn1M2aPffcPtnFeevkTFrbQ7j1vI",
-  authDomain:        "fir-421a6.firebaseapp.com",
-  databaseURL:       "https://fir-421a6-default-rtdb.firebaseio.com",
-  projectId:         "fir-421a6",
-  storageBucket:     "fir-421a6.firebasestorage.app",
+  apiKey: "AIzaSyDUjEEGn1M2aPffcPtnFeevkTFrbQ7j1vI",
+  authDomain: "fir-421a6.firebaseapp.com",
+  databaseURL: "https://fir-421a6-default-rtdb.firebaseio.com",
+  projectId: "fir-421a6",
+  storageBucket: "fir-421a6.firebasestorage.app",
   messagingSenderId: "423073426054",
-  appId:             "1:423073426054:web:5caeddeb0fa352c2593f07",
-  measurementId:     "G-5Q41W61TJY",
+  appId: "1:423073426054:web:5caeddeb0fa352c2593f07",
+  measurementId: "G-5Q41W61TJY",
 };
 const firebaseApp = initializeApp(firebaseConfig);
-const db          = getDatabase(firebaseApp);
+const db = getDatabase(firebaseApp);
 
 // ── Constants ────────────────────────────────────────────────────
-const API_BASE     = "https://catatonically-nonmedicinal-lorenza.ngrok-free.dev";
-const AUTH_TOKEN   = "my-secret-key";
+const API_BASE = "https://catatonically-nonmedicinal-lorenza.ngrok-free.dev";
+const AUTH_TOKEN = "my-secret-key";
 const NGROK_HEADER = { "ngrok-skip-browser-warning": "true" };
 const USE_FIREBASE = true;
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_TIME = 20 * 60 * 1000; // 20 minutes
 
 // ── State ────────────────────────────────────────────────────────
-let currentUser      = sessionStorage.getItem("currentUser");
-let isGuest          = sessionStorage.getItem("isGuest") === "true";
+let currentUser = sessionStorage.getItem("currentUser");
+let isGuest = sessionStorage.getItem("isGuest") === "true";
 let currentSessionId = sessionStorage.getItem("currentSessionId");
 let selectedImageB64 = null;
-let selectedModelId  = null;
-let availableModels  = [];
-let isSending        = false;
-let fbLoadedOnce     = false;
-let isPrivateMode    = false;
+let selectedModelId = null;
+let availableModels = [];
+let isSending = false;
+let fbLoadedOnce = false;
+let isPrivateMode = false;
 
 let chatSessions = {};   // { [id]: { name, timestamp } }
 let messageCache = {};   // { [id]: Message[] }
 
 // ── Model icon mapping ───────────────────────────────────────────
 const MODEL_ICONS = {
-  pneumonia:   { icon: "coronavirus",       color: "#ef4444", bg: "rgba(239,68,68,0.12)"  },
-  tb:          { icon: "biotech",            color: "#f97316", bg: "rgba(249,115,22,0.12)" },
-  pneumothorax:{ icon: "air",               color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-  cardiomegaly:{ icon: "favorite",          color: "#ec4899", bg: "rgba(236,72,153,0.12)" },
-  emphysema:   { icon: "cloud",             color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
-  mass_nodule: { icon: "bubble_chart",      color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
-  rib_fracture:{ icon: "accessibility_new", color: "#14b8a6", bg: "rgba(20,184,166,0.12)" },
+  pneumonia: { icon: "coronavirus", color: "#ef4444", bg: "rgba(239,68,68,0.12)" },
+  tb: { icon: "biotech", color: "#f97316", bg: "rgba(249,115,22,0.12)" },
+  pneumothorax: { icon: "air", color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
+  cardiomegaly: { icon: "favorite", color: "#ec4899", bg: "rgba(236,72,153,0.12)" },
+  emphysema: { icon: "cloud", color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
+  mass_nodule: { icon: "bubble_chart", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+  rib_fracture: { icon: "accessibility_new", color: "#14b8a6", bg: "rgba(20,184,166,0.12)" },
 };
 
 function getModelMeta(modelId) {
@@ -67,59 +67,59 @@ const els = {};
 
 function bindElements() {
   Object.assign(els, {
-    preloader:               $("preloader"),
-    authModal:               $("auth-modal"),
-    authUsername:            $("auth-username"),
-    authPassword:            $("auth-password"),
-    authError:               $("auth-error"),
-    sidebar:                 $("sidebar"),
-    sidebarScrim:            $("sidebar-scrim"),
-    chatList:                $("chat-list"),
-    chatSearch:              $("chat-search"),
-    heroState:               $("hero-state"),
-    chatBox:                 $("chat-box"),
-    messagesContainer:       $("messages-container"),
-    imgInput:                $("img-input"),
-    imagePreviewStrip:       $("image-preview-strip"),
-    previewImg:              $("preview-img"),
-    previewModelLabel:       $("preview-model-label"),
-    composer:                $("composer"),
-    msgInput:                $("msg-input"),
-    modelTrigger:            $("model-trigger"),
-    modelTriggerIcon:        $("model-trigger-icon"),
-    selectedModelLabel:      $("selected-model-label"),
-    modelMenu:               $("model-menu"),
-    modelMenuList:           $("model-menu-list"),
-    sendBtn:                 $("send-btn"),
-    attachBtn:               $("attach-btn"),
-    privateModeBtnTop:       $("private-mode-btn"),
-    privateModeBtnChip:      $("private-mode-chip"),
-    settingsPanel:           $("settings-panel"),
-    settingsModelStatus:     $("settings-model-status"),
-    profileAvatar:           $("profile-avatar"),
-    profileName:             $("profile-name"),
-    profileMode:             $("profile-mode"),
-    topbarAvatarBtn:         $("topbar-avatar-btn"),
-    settingsAvatar:          $("settings-avatar"),
-    settingsUserName:        $("settings-user-name"),
-    settingsUserMode:        $("settings-user-mode"),
-    modal:                   $("custom-modal"),
-    modalTitle:              $("modal-title"),
-    modalMessage:            $("modal-message"),
-    modalOkBtn:              $("modal-ok-btn"),
-    modalCancelBtn:          $("modal-cancel-btn"),
-    nameModal:               $("name-modal"),
-    nameInput:               $("name-input"),
-    themeToggleBtn:          $("theme-toggle-btn"),
-    themeStatusText:         $("theme-status-text"),
-    changeNameBtn:           $("change-name-btn"),
-    clearHistoryBtn:         $("clear-history-settings-btn"),
-    sidebarNewChatBtn:       $("sidebar-new-chat-btn"),
-    newChatIconBtn:          $("new-chat-icon-btn"),
-    logoutBtn:               $("logout-btn"),
-    removeImageBtn:          $("remove-image-btn"),
-    appNameDisplay:          $("app-name-display"),
-    sidebarAppName:          $("sidebar-app-name"),
+    preloader: $("preloader"),
+    authModal: $("auth-modal"),
+    authUsername: $("auth-username"),
+    authPassword: $("auth-password"),
+    authError: $("auth-error"),
+    sidebar: $("sidebar"),
+    sidebarScrim: $("sidebar-scrim"),
+    chatList: $("chat-list"),
+    chatSearch: $("chat-search"),
+    heroState: $("hero-state"),
+    chatBox: $("chat-box"),
+    messagesContainer: $("messages-container"),
+    imgInput: $("img-input"),
+    imagePreviewStrip: $("image-preview-strip"),
+    previewImg: $("preview-img"),
+    previewModelLabel: $("preview-model-label"),
+    composer: $("composer"),
+    msgInput: $("msg-input"),
+    modelTrigger: $("model-trigger"),
+    modelTriggerIcon: $("model-trigger-icon"),
+    selectedModelLabel: $("selected-model-label"),
+    modelMenu: $("model-menu"),
+    modelMenuList: $("model-menu-list"),
+    sendBtn: $("send-btn"),
+    attachBtn: $("attach-btn"),
+    privateModeBtnTop: $("private-mode-btn"),
+    privateModeBtnChip: $("private-mode-chip"),
+    settingsPanel: $("settings-panel"),
+    settingsModelStatus: $("settings-model-status"),
+    profileAvatar: $("profile-avatar"),
+    profileName: $("profile-name"),
+    profileMode: $("profile-mode"),
+    topbarAvatarBtn: $("topbar-avatar-btn"),
+    settingsAvatar: $("settings-avatar"),
+    settingsUserName: $("settings-user-name"),
+    settingsUserMode: $("settings-user-mode"),
+    modal: $("custom-modal"),
+    modalTitle: $("modal-title"),
+    modalMessage: $("modal-message"),
+    modalOkBtn: $("modal-ok-btn"),
+    modalCancelBtn: $("modal-cancel-btn"),
+    nameModal: $("name-modal"),
+    nameInput: $("name-input"),
+    themeToggleBtn: $("theme-toggle-btn"),
+    themeStatusText: $("theme-status-text"),
+    changeNameBtn: $("change-name-btn"),
+    clearHistoryBtn: $("clear-history-settings-btn"),
+    sidebarNewChatBtn: $("sidebar-new-chat-btn"),
+    newChatIconBtn: $("new-chat-icon-btn"),
+    logoutBtn: $("logout-btn"),
+    removeImageBtn: $("remove-image-btn"),
+    appNameDisplay: $("app-name-display"),
+    sidebarAppName: $("sidebar-app-name"),
   });
 }
 
@@ -137,8 +137,8 @@ function hidePreloader() {
 // ════════════════════════════════════════════════════
 function openModal(title, message, onConfirm = null) {
   if (!els.modal) return;
-  els.modalTitle.textContent   = title;
-  els.modalMessage.innerHTML   = String(message).replace(/\n/g, "<br>");
+  els.modalTitle.textContent = title;
+  els.modalMessage.innerHTML = String(message).replace(/\n/g, "<br>");
   els.modal.classList.remove("hidden");
 
   if (onConfirm) {
@@ -167,7 +167,7 @@ function getDeviceId() {
 }
 
 function getLockoutStatus() {
-  const start    = localStorage.getItem("lockout_start");
+  const start = localStorage.getItem("lockout_start");
   const attempts = parseInt(localStorage.getItem("failed_attempts") || "0", 10);
   if (!start) return { locked: false, attempts };
   const elapsed = Date.now() - parseInt(start, 10);
@@ -187,10 +187,11 @@ function registerFailure() {
 }
 
 function validateInputs(user, pass) {
-  if (!/^[a-zA-Z]/.test(user))        return "Username must start with a letter.";
-  if (user.length < 5)                 return "Username must be at least 5 characters.";
-  if (pass.length < 8)                 return "Password must be at least 8 characters.";
-  if (!/[A-Z]/.test(pass))             return "Password needs at least 1 uppercase letter.";
+  if (!/^[a-zA-Z]/.test(user)) return "Username must start with a letter.";
+  if (user.length < 5) return "Username must be at least 5 characters.";
+  if (/[.#$\[\]]/.test(user)) return "Username cannot contain . # $ [ or ]";
+  if (pass.length < 8) return "Password must be at least 8 characters.";
+  if (!/[A-Z]/.test(pass)) return "Password needs at least 1 uppercase letter.";
   if (!/[!@#$%^&*(),.?":{}|<>]/.test(pass)) return "Password needs at least 1 special character.";
   return null;
 }
@@ -214,26 +215,49 @@ async function handleLogin() {
   if (!user || !pass) { showAuthError("Please enter username and password."); return; }
 
   try {
-    const devId    = getDeviceId();
-    const devSnap  = await get(child(ref(db), `devices/${devId}`));
+    console.log("Attempting login for:", user);
+    const devId = getDeviceId();
+    const devSnap = await get(child(ref(db), `devices/${devId}`));
+    
     if (devSnap.exists() && devSnap.val() !== user) {
-      openModal("Access Denied", `This device is linked to another account.`); return;
+      console.warn("Device linked to another account:", devSnap.val());
+      openModal("Device Linked", `This device is currently linked to "${devSnap.val()}". Do you want to continue anyway?`, async () => {
+        // Proceed with login regardless
+        await performLoginLogic(user, pass);
+      });
+      return;
     }
+    await performLoginLogic(user, pass);
+  } catch (err) {
+    console.error("Login Error:", err);
+    showAuthError("Connection error. Check your internet or Firebase rules.");
+  }
+}
+
+async function performLoginLogic(user, pass) {
+  try {
     const userSnap = await get(child(ref(db), `users/${user}`));
-    if (!userSnap.exists())             { showAuthError("User not found."); return; }
-    if (userSnap.val().password !== pass) {
+    if (!userSnap.exists()) { 
+      console.warn("User not found:", user);
+      showAuthError("User not found."); 
+      return; 
+    }
+    const userData = userSnap.val();
+    if (userData.password !== pass) {
+      console.warn("Incorrect password for:", user);
       const locked = registerFailure();
       locked
         ? openModal("Account Locked", "Too many failed attempts. Locked for 20 minutes.")
         : showAuthError("Incorrect password.");
       return;
     }
+    console.log("Login successful:", user);
     localStorage.removeItem("failed_attempts");
     localStorage.removeItem("lockout_start");
     completeLogin(user, false);
   } catch (err) {
-    console.error(err);
-    showAuthError("Connection error. Try again.");
+    console.error("Firebase Login Logic Error:", err);
+    showAuthError("Database error. Please try again.");
   }
 }
 
@@ -246,19 +270,28 @@ async function handleSignUp() {
   if (err) { openModal("Invalid Input", err); return; }
 
   try {
-    const devId   = getDeviceId();
+    console.log("Attempting signup for:", user);
+    const devId = getDeviceId();
     const devSnap = await get(child(ref(db), `devices/${devId}`));
-    if (devSnap.exists()) { openModal("Already Registered", `This device is registered to ${devSnap.val()}.`); return; }
+    if (devSnap.exists() && devSnap.val() !== user) {
+      console.warn("Device already registered to:", devSnap.val());
+      // We'll allow it but warn the user
+    }
 
     const userSnap = await get(child(ref(db), `users/${user}`));
-    if (userSnap.exists()) { showAuthError("Username already taken."); return; }
+    if (userSnap.exists()) { 
+      console.warn("Username taken:", user);
+      showAuthError("Username already taken."); 
+      return; 
+    }
 
     await set(ref(db, `users/${user}`), { password: pass, device_id: devId });
     await set(ref(db, `devices/${devId}`), user);
+    console.log("Signup successful:", user);
     completeLogin(user, false);
   } catch (err2) {
-    console.error(err2);
-    showAuthError("Signup failed. Try again.");
+    console.error("Signup Error:", err2);
+    showAuthError("Signup failed. Check Firebase rules or connection.");
   }
 }
 
@@ -266,7 +299,7 @@ function handleGuestLogin() { completeLogin("Guest", true); }
 
 function completeLogin(username, guestMode) {
   currentUser = username;
-  isGuest     = guestMode;
+  isGuest = guestMode;
   sessionStorage.setItem("currentUser", username);
   sessionStorage.setItem("isGuest", String(guestMode));
   if (els.authModal) els.authModal.classList.add("hidden");
@@ -298,14 +331,14 @@ function logout() {
 // ════════════════════════════════════════════════════
 function syncProfileUI() {
   const display = currentUser || "Guest";
-  const badge   = display.charAt(0).toUpperCase();
-  const mode    = isGuest ? "Guest mode" : isPrivateMode ? "Private mode" : "Signed in";
+  const badge = display.charAt(0).toUpperCase();
+  const mode = isGuest ? "Guest mode" : isPrivateMode ? "Private mode" : "Signed in";
 
   [els.profileAvatar, els.settingsAvatar, els.topbarAvatarBtn].forEach(el => { if (el) el.textContent = badge; });
-  if (els.profileName)       els.profileName.textContent    = display;
-  if (els.settingsUserName)  els.settingsUserName.textContent = display;
-  if (els.profileMode)       els.profileMode.textContent    = mode;
-  if (els.settingsUserMode)  els.settingsUserMode.textContent = mode;
+  if (els.profileName) els.profileName.textContent = display;
+  if (els.settingsUserName) els.settingsUserName.textContent = display;
+  if (els.profileMode) els.profileMode.textContent = mode;
+  if (els.settingsUserMode) els.settingsUserMode.textContent = mode;
 }
 
 // ════════════════════════════════════════════════════
@@ -361,9 +394,9 @@ function initTheme() {
 function setAppName(name) {
   const n = name.trim() || "ChestGuard AI";
   document.title = n;
-  const titleEl = $("app-title");     if (titleEl) titleEl.textContent = n;
-  if (els.appNameDisplay) els.appNameDisplay.textContent   = n;
-  if (els.sidebarAppName) els.sidebarAppName.textContent   = n;
+  const titleEl = $("app-title"); if (titleEl) titleEl.textContent = n;
+  if (els.appNameDisplay) els.appNameDisplay.textContent = n;
+  if (els.sidebarAppName) els.sidebarAppName.textContent = n;
   localStorage.setItem("app_name", n);
 }
 function openNameModal() {
@@ -397,7 +430,7 @@ function updateHeroVisibility() {
 // ════════════════════════════════════════════════════
 async function loadModelCatalog() {
   try {
-    const res  = await fetch(`${API_BASE}/models`, { headers: { "x-auth": AUTH_TOKEN, ...NGROK_HEADER } });
+    const res = await fetch(`${API_BASE}/models`, { headers: { "x-auth": AUTH_TOKEN, ...NGROK_HEADER } });
     const data = await res.json();
     availableModels = data.models || [];
 
@@ -425,13 +458,13 @@ function renderModelMenu() {
   }
 
   availableModels.forEach(model => {
-    const meta      = getModelMeta(model.id);
-    const isActive  = model.id === selectedModelId;
-    const disabled  = !model.available;
+    const meta = getModelMeta(model.id);
+    const isActive = model.id === selectedModelId;
+    const disabled = !model.available;
 
     const btn = document.createElement("button");
     btn.className = `model-menu-item ${isActive ? "selected" : ""} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`;
-    btn.disabled  = disabled;
+    btn.disabled = disabled;
     btn.innerHTML = `
       <div class="model-icon-wrap" style="background:${meta.bg}">
         <span class="material-symbols-rounded text-[18px]" style="color:${meta.color}">${meta.icon}</span>
@@ -471,7 +504,7 @@ function syncPreviewLabel() {
     els.previewModelLabel.textContent = model ? `Model: ${model.label}` : "No model selected";
 }
 
-function openModelMenu()  { if (els.modelMenu) els.modelMenu.classList.remove("hidden"); }
+function openModelMenu() { if (els.modelMenu) els.modelMenu.classList.remove("hidden"); }
 function closeModelMenu() { if (els.modelMenu) els.modelMenu.classList.add("hidden"); }
 function toggleModelMenu(e) { e.stopPropagation(); els.modelMenu?.classList.toggle("hidden"); }
 
@@ -618,7 +651,7 @@ async function saveSessionMeta() {
 
 async function saveMessageToFirebase(sessionId, message) {
   if (isGuest || !USE_FIREBASE || !currentUser) return;
-  const key = `msg-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+  const key = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   try { await set(ref(db, `chats/${currentUser}/${sessionId}/messages/${key}`), message); } catch (e) { console.warn(e); }
 }
 
@@ -628,7 +661,7 @@ async function loadSessionsFromFirebase() {
   try {
     const snap = await get(child(ref(db), `chats/${currentUser}/meta`));
     if (snap.exists()) chatSessions = snap.val() || {};
-    const ids = Object.keys(chatSessions).sort((a,b) => (chatSessions[b].timestamp||0) - (chatSessions[a].timestamp||0));
+    const ids = Object.keys(chatSessions).sort((a, b) => (chatSessions[b].timestamp || 0) - (chatSessions[a].timestamp || 0));
     if (!ids.length) { await createNewChat(false); return; }
 
     currentSessionId = (currentSessionId && chatSessions[currentSessionId]) ? currentSessionId : ids[0];
@@ -644,7 +677,7 @@ async function loadHistory(sessionId) {
   try {
     const snap = await get(child(ref(db), `chats/${currentUser}/${sessionId}/messages`));
     const msgs = snap.exists() ? Object.values(snap.val()) : [];
-    msgs.sort((a,b) => (a.timestamp||0) - (b.timestamp||0));
+    msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
     messageCache[sessionId] = msgs;
     renderMessages(sessionId);
   } catch (e) {
@@ -674,7 +707,7 @@ function appendMessageBubble(message, animate = false) {
   if (isUser) {
     // User message — right aligned bubble
     const inner = document.createElement("div");
-    inner.className = "flex flex-col gap-2 w-fit max-w-[80%] md:max-w-[65%]";
+    inner.className = "flex flex-col gap-2 max-w-[80%] md:max-w-[65%]";
 
     // X-ray image (if any)
     if (message.image) {
@@ -711,7 +744,7 @@ function appendMessageBubble(message, animate = false) {
 
     // Medical result badge
     if (message.medicalResult) {
-      const mr  = message.medicalResult;
+      const mr = message.medicalResult;
       const isPositive = mr.label && !mr.label.toLowerCase().startsWith("normal");
       const badgeClass = isPositive ? "positive" : "negative";
       const conf = mr.confidence_percent || "";
@@ -766,22 +799,22 @@ function escText(str) {
 function formatInline(raw) {
   return escText(raw)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g,     "<em>$1</em>")
-    .replace(/`([^`]+)`/g,     '<code class="inline-code">$1</code>')
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">$1</a>');
 }
 
 // ── Block markdown renderer ──────────────────────────────────────
 function formatAssistantText(text) {
   if (!text) return "";
-  const lines  = text.split("\n");
-  let html     = "";
-  let inList   = false;
-  let inOl     = false;
+  const lines = text.split("\n");
+  let html = "";
+  let inList = false;
+  let inOl = false;
 
   const closeList = () => {
     if (inList) { html += "</ul>"; inList = false; }
-    if (inOl)   { html += "</ol>"; inOl   = false; }
+    if (inOl) { html += "</ol>"; inOl = false; }
   };
 
   for (let i = 0; i < lines.length; i++) {
@@ -824,7 +857,7 @@ function formatAssistantText(text) {
     const olMatch = trimmed.match(/^(\d+)\.\s+(.+)/);
     if (olMatch) {
       if (inList) { html += "</ul>"; inList = false; }
-      if (!inOl)  { html += '<ol class="list-decimal ml-5 my-1.5 space-y-0.5">'; inOl = true; }
+      if (!inOl) { html += '<ol class="list-decimal ml-5 my-1.5 space-y-0.5">'; inOl = true; }
       html += `<li>${formatInline(olMatch[2])}</li>`;
       continue;
     }
@@ -876,7 +909,7 @@ async function sendMessage(e) {
   e?.preventDefault();
   if (isSending || !currentSessionId) return;
 
-  const text     = (els.msgInput?.value || "").trim();
+  const text = (els.msgInput?.value || "").trim();
   const hasImage = !!selectedImageB64;
   if (!text && !hasImage) return;
 
@@ -929,15 +962,30 @@ async function sendMessage(e) {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-auth": AUTH_TOKEN, ...NGROK_HEADER },
       body: JSON.stringify({
-        session_id:     currentSessionId,
-        message:        text,
-        image_base64:   imageToSend,
+        session_id: currentSessionId,
+        message: text,
+        image_base64: imageToSend,
         selected_model: selectedModelId,
       }),
     });
 
     thinkEl?.remove();
     const data = await resp.json();
+
+    // Check for success with internal error flag from backend
+    if (resp.ok && data.error) {
+      const errorMsg = {
+        role: "assistant",
+        content: data.response || "⚠️ An internal error occurred. Please try again.",
+        medicalResult: data.medical_result || null,
+        timestamp: Date.now(),
+        isError: true
+      };
+      messageCache[currentSessionId].push(errorMsg);
+      appendMessageBubble(errorMsg, true);
+      return;
+    }
+
     if (!resp.ok) throw new Error(data.detail || "Server error");
 
     const assistantMsg = {
@@ -954,8 +1002,9 @@ async function sendMessage(e) {
     thinkEl?.remove();
     const errMsg = {
       role: "assistant",
-      content: `⚠️ Error: ${err.message}.\n\nPlease make sure the server is running and Ollama is available.`,
+      content: `⚠️ Error: ${err.message}.\n\nPlease ensure Ollama is running and your model is loaded. You may need to restart the server.`,
       timestamp: Date.now(),
+      isError: true
     };
     messageCache[currentSessionId].push(errMsg);
     appendMessageBubble(errMsg, true);
@@ -1009,26 +1058,31 @@ function renderSettingsModels() {
 // ════════════════════════════════════════════════════
 function escapeHtml(str) {
   return String(str)
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 // ════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════
 async function initializeAppState() {
-  await loadModelCatalog();
-  if (isGuest) {
-    if (!currentSessionId) await createNewChat(false);
-    else {
-      if (!chatSessions[currentSessionId]) chatSessions[currentSessionId] = { name: "New analysis", timestamp: Date.now() };
-      if (!messageCache[currentSessionId]) messageCache[currentSessionId] = [];
-      renderChatList();
-      renderMessages(currentSessionId);
+  try {
+    await loadModelCatalog();
+    if (isGuest) {
+      if (!currentSessionId) await createNewChat(false);
+      else {
+        if (!chatSessions[currentSessionId]) chatSessions[currentSessionId] = { name: "New analysis", timestamp: Date.now() };
+        if (!messageCache[currentSessionId]) messageCache[currentSessionId] = [];
+        renderChatList();
+        renderMessages(currentSessionId);
+      }
+    } else {
+      await loadSessionsFromFirebase();
     }
-  } else {
-    await loadSessionsFromFirebase();
+  } catch (err) {
+    console.error("Initialization error:", err);
+  } finally {
+    hidePreloader();
   }
-  hidePreloader();
 }
 
 // ════════════════════════════════════════════════════
@@ -1036,9 +1090,9 @@ async function initializeAppState() {
 // ════════════════════════════════════════════════════
 function setupEvents() {
   // Auth
-  $("login-btn")?.addEventListener("click",  handleLogin);
+  $("login-btn")?.addEventListener("click", handleLogin);
   $("signup-btn")?.addEventListener("click", handleSignUp);
-  $("guest-btn")?.addEventListener("click",  handleGuestLogin);
+  $("guest-btn")?.addEventListener("click", handleGuestLogin);
 
   // Enter key on password
   els.authPassword?.addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
@@ -1049,18 +1103,18 @@ function setupEvents() {
 
   // New Chat
   els.sidebarNewChatBtn?.addEventListener("click", () => createNewChat());
-  els.newChatIconBtn?.addEventListener("click",    () => createNewChat());
+  els.newChatIconBtn?.addEventListener("click", () => createNewChat());
 
   // Sidebar
-  $("open-sidebar-btn")?.addEventListener("click",         openSidebar);
-  $("mobile-sidebar-close")?.addEventListener("click",     closeSidebar);
-  els.sidebarScrim?.addEventListener("click",              closeSidebar);
+  $("open-sidebar-btn")?.addEventListener("click", openSidebar);
+  $("mobile-sidebar-close")?.addEventListener("click", closeSidebar);
+  els.sidebarScrim?.addEventListener("click", closeSidebar);
 
   // Settings
   els.openSettingsBtn = $("settings-open-btn");
-  els.openSettingsBtn?.addEventListener("click",            openSettings);
-  els.topbarAvatarBtn?.addEventListener("click",            openSettings);
-  $("settings-close-btn")?.addEventListener("click",       closeSettings);
+  els.openSettingsBtn?.addEventListener("click", openSettings);
+  els.topbarAvatarBtn?.addEventListener("click", openSettings);
+  $("settings-close-btn")?.addEventListener("click", closeSettings);
 
   // Theme
   els.themeToggleBtn?.addEventListener("click", toggleTheme);
@@ -1081,7 +1135,7 @@ function setupEvents() {
         try {
           for (const id of ids) await remove(ref(db, `chats/${currentUser}/${id}`));
           await saveSessionMeta();
-        } catch(e) { console.warn(e); }
+        } catch (e) { console.warn(e); }
       }
       renderChatList();
       await createNewChat();

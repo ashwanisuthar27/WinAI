@@ -32,7 +32,6 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BASE_SYSTEM_PROMPT = (
     "You are WinAI, a warm and careful medical AI assistant for chest X-ray support. "
     "You help users understand model findings in clear, human language. "
-    "Never claim a diagnosis is final. Explain findings, confidence, likely meaning, limits, "
     "and when clinical review is important. If the conversation includes prior chat context, "
     "use it to answer follow-up questions naturally. Keep responses supportive and easy to understand."
 )
@@ -695,11 +694,43 @@ def chat_endpoint(req: ChatRequest, x_auth: str = Header(None)):
 
     model_messages = build_chat_messages(session, user_text, inference)
 
-    try:
-        response = ollama.chat(model=TEXT_MODEL, messages=model_messages)
-        reply = response["message"]["content"]
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Ollama Error: {exc}") from exc
+    # Trim to last 6 turns (12 messages) to prevent OOM on large histories
+    MAX_TURNS = 6
+    trimmed_messages = model_messages[:1]  # keep system prompt
+    convo_msgs = [m for m in model_messages[1:] if m["role"] != "system"]
+    if len(convo_msgs) > MAX_TURNS * 2:
+        convo_msgs = convo_msgs[-(MAX_TURNS * 2):]
+    model_messages = trimmed_messages + [m for m in model_messages[1:] if m["role"] == "system"] + convo_msgs
+
+    reply = None
+    last_error = None
+
+    for attempt in range(2):  # try full context, then minimal context on failure
+        try:
+            # First attempt: full context. Second attempt: minimal context (System + current User message)
+            msgs_to_send = model_messages if attempt == 0 else [model_messages[0], model_messages[-1]]
+            response = ollama.chat(model=TEXT_MODEL, messages=msgs_to_send)
+            reply = response["message"]["content"]
+            break
+        except Exception as exc:
+            last_error = exc
+            err_str = str(exc).lower()
+            # Ollama runner crash — retry with minimal context
+            if "runner" in err_str or "terminated" in err_str or "500" in err_str:
+                print(f"Ollama runner crash on attempt {attempt + 1}, retrying with minimal context...")
+                continue
+            # Non-recoverable error (connection refused, model not found, etc.)
+            break
+
+    if reply is None:
+        err_msg = str(last_error)
+        # Parse Go-style nil error formatting: %!w(<nil>)
+        if "%!w" in err_msg or "<nil>" in err_msg:
+            err_msg = "The AI model ran out of memory. Try a shorter message or restart Ollama."
+        elif "connection" in err_msg.lower() or "refused" in err_msg.lower():
+            err_msg = "Cannot reach Ollama. Please make sure Ollama is running."
+        print(f"Ollama error after all retries: {last_error}")
+        return {"response": f"⚠️ {err_msg}", "medical_result": inference, "error": True}
 
     stored_user_text = user_text or "[Image only]"
     if inference:
