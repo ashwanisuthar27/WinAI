@@ -117,7 +117,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory=".", html=False), name="static")
+app.mount("/static", StaticFiles(directory="static", html=False), name="static")
 
 TEXT_MODEL = None
 MEDICAL_MODELS: Dict[str, Dict[str, Any]] = {}
