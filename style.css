@@ -131,10 +131,17 @@ html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   padding: 10px 16px;
   font-size: 14.5px;
   line-height: 1.6;
-  /* Right-alignment is done by the outer wrapper's justify-end — NOT here */
-  /* align-self:flex-end + overflow-wrap shrinks width to 1-char → words split */
+  /*
+   * IMPORTANT — do NOT use word-break:break-word here!
+   * That non-standard value = overflow-wrap:anywhere on mobile browsers,
+   * which makes min-content-width = 1 char → "Hello" splits into H/e/l/l/o.
+   * overflow-wrap:break-word is the SAFE version — it only breaks a word
+   * when it would *actually overflow* the container, without shrinking
+   * the min-content-width. So short words like "hi" stay intact.
+   */
+  overflow-wrap: break-word;   /* safe: only breaks truly overflowing long words/URLs */
+  word-break: normal;          /* standard default — never break mid-word for layout */
   max-width: min(580px, 85vw);
-  word-break: break-word;   /* only break truly long unbreakable strings (URLs) */
 }
 .dark .user-bubble {
   background: rgba(255,255,255,0.09);

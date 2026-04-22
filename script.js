@@ -674,7 +674,7 @@ function appendMessageBubble(message, animate = false) {
   if (isUser) {
     // User message — right aligned bubble
     const inner = document.createElement("div");
-    inner.className = "flex flex-col gap-2 max-w-[80%] md:max-w-[65%]";
+    inner.className = "flex flex-col gap-2 w-fit max-w-[80%] md:max-w-[65%]";
 
     // X-ray image (if any)
     if (message.image) {
