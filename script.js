@@ -29,9 +29,9 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_TIME = 20 * 60 * 1000; // 20 minutes
 
 // ── State ────────────────────────────────────────────────────────
-let currentUser = sessionStorage.getItem("currentUser");
-let isGuest = sessionStorage.getItem("isGuest") === "true";
-let currentSessionId = sessionStorage.getItem("currentSessionId");
+let currentUser = localStorage.getItem("currentUser");
+let isGuest = localStorage.getItem("isGuest") === "true";
+let currentSessionId = localStorage.getItem("currentSessionId");
 let selectedImageB64 = null;
 let selectedModelId = null;
 let availableModels = [];
@@ -300,8 +300,8 @@ function handleGuestLogin() { completeLogin("Guest", true); }
 function completeLogin(username, guestMode) {
   currentUser = username;
   isGuest = guestMode;
-  sessionStorage.setItem("currentUser", username);
-  sessionStorage.setItem("isGuest", String(guestMode));
+  localStorage.setItem("currentUser", username);
+  localStorage.setItem("isGuest", String(guestMode));
   if (els.authModal) els.authModal.classList.add("hidden");
   syncProfileUI();
   initializeAppState();
@@ -312,7 +312,9 @@ function logout() {
     currentUser = null; isGuest = false; currentSessionId = null;
     selectedImageB64 = null; selectedModelId = null;
     chatSessions = {}; messageCache = {}; fbLoadedOnce = false;
-    sessionStorage.clear();
+    localStorage.removeItem("currentUser");
+    localStorage.removeItem("isGuest");
+    localStorage.removeItem("currentSessionId");
     if (els.authUsername) els.authUsername.value = "";
     if (els.authPassword) els.authPassword.value = "";
     if (els.messagesContainer) els.messagesContainer.innerHTML = "";
@@ -600,7 +602,7 @@ async function createNewChat(shouldSave = true) {
   if (isSending) return;
   const id = generateSessionId();
   currentSessionId = id;
-  sessionStorage.setItem("currentSessionId", id);
+  localStorage.setItem("currentSessionId", id);
   chatSessions[id] = { name: "New analysis", timestamp: Date.now() };
   messageCache[id] = [];
   renderChatList();
@@ -616,7 +618,7 @@ async function createNewChat(shouldSave = true) {
 async function switchChat(id) {
   if (isSending || id === currentSessionId) { closeSidebar(); return; }
   currentSessionId = id;
-  sessionStorage.setItem("currentSessionId", id);
+  localStorage.setItem("currentSessionId", id);
   clearSelectedImage();
   if (!messageCache[id]) await loadHistory(id);
   else renderMessages(id);
@@ -665,7 +667,7 @@ async function loadSessionsFromFirebase() {
     if (!ids.length) { await createNewChat(false); return; }
 
     currentSessionId = (currentSessionId && chatSessions[currentSessionId]) ? currentSessionId : ids[0];
-    sessionStorage.setItem("currentSessionId", currentSessionId);
+    localStorage.setItem("currentSessionId", currentSessionId);
     renderChatList();
     await loadHistory(currentSessionId);
   } catch (e) { console.error("Firebase load failed:", e); }
