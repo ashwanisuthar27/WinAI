@@ -33,7 +33,9 @@ BASE_SYSTEM_PROMPT = (
     "You are WinAI, a warm and careful medical AI assistant for chest X-ray support. "
     "You help users understand model findings in clear, human language. "
     "and when clinical review is important. If the conversation includes prior chat context, "
-    "use it to answer follow-up questions naturally. Keep responses supportive and easy to understand."
+    "use it to answer follow-up questions naturally. Keep responses supportive and easy to understand. "
+    "IMPORTANT: Do not use JSON formatting, code blocks, or curly braces '{}' in your response. "
+    "Always reply in plain conversational text or markdown."
 )
 
 MODEL_FRIENDLY_NAMES = {
@@ -599,14 +601,15 @@ def build_chat_messages(session: Dict[str, Any], user_message: str, inference: O
     messages.extend(session["messages"])
 
     if inference is not None:
+        scores_text = ", ".join([f"{k}: {v*100:.1f}%" for k, v in inference['scores'].items()])
         user_content = (
             f"User note: {user_message or 'No extra text provided.'}\n\n"
             f"Selected medical model: {inference['model_label']}\n"
             f"Prediction label: {inference['label']}\n"
             f"Confidence: {inference['confidence_percent']}\n"
-            f"Scores: {json.dumps(inference['scores'])}\n\n"
+            f"Scores: {scores_text}\n\n"
             "Explain these findings in friendly language, include what the model suggests, "
-            "what it does not prove, and a practical next step."
+            "what it does not prove, and a practical next step. Do not output any curly braces {}."
         )
     else:
         user_content = user_message

@@ -20,7 +20,7 @@
 6. [Data Collection & Domain Knowledge Preparation](#6-data-collection--domain-knowledge-preparation)
 7. [Model Configuration Awareness](#7-model-configuration-awareness)
 8. [Technical Execution & Implementation](#8-technical-execution--implementation)
-9. [X-Ray Classification Models (Pneumonia & Tuberculosis)](#9-x-ray-classification-models-pneumonia--tuberculosis)
+9. [X-Ray Classification Models (Full Suite)](#9-x-ray-classification-models-full-suite)
 10. [API Integration & System Design](#10-api-integration--system-design)
 11. [Prompt Engineering & Domain Control](#11-prompt-engineering--domain-control)
 12. [User Interface](#12-user-interface)
@@ -33,9 +33,9 @@
 
 ## 1. Introduction
 
-Chest X-rays are one of the most commonly prescribed diagnostic imaging tests worldwide, with an estimated 2 billion performed annually. However, access to qualified radiologists remains extremely limited, particularly in rural and under-resourced regions. Misinterpretation and delayed diagnosis of critical conditions like pneumonia and tuberculosis (TB) continue to contribute to preventable morbidity and mortality.
+Chest X-rays are one of the most commonly prescribed diagnostic imaging tests worldwide, with an estimated 2 billion performed annually. However, access to qualified radiologists remains extremely limited, particularly in rural and under-resourced regions. Misinterpretation and delayed diagnosis of critical conditions like pneumonia, tuberculosis (TB), and pneumothorax continue to contribute to preventable morbidity and mortality.
 
-**ChestGuard AI** addresses this gap by combining **custom-trained deep learning models** for chest X-ray classification with a **domain-specific Generative AI chatbot**. The chatbot, powered by the Ollama API (running the `llama3-openbiollm-8b` medical LLM), interprets model predictions and explains findings to users in clear, empathetic, human-readable language — acting as a virtual radiology assistant.
+**ChestGuard AI** addresses this gap by combining **custom-trained deep learning models** (spanning 7 distinct chest conditions) for chest X-ray classification with a **domain-specific Generative AI chatbot**. The chatbot, powered by the Ollama API (running the `llama3-openbiollm-8b` medical LLM), interprets model predictions and explains findings to users in clear, empathetic, human-readable language — acting as a virtual radiology assistant.
 
 This project demonstrates the practical application of Generative AI APIs in the healthcare domain, where domain constraint, responsible communication, and factual accuracy are paramount.
 
@@ -80,7 +80,7 @@ This two-stage pipeline ensures that the chatbot's responses are **grounded in a
 
 ChestGuard AI is a **healthcare-domain AI chatbot** that:
 1. Accepts a chest X-ray image upload from the user.
-2. Runs it through a selected deep learning classifier (Pneumonia or TB model).
+2. Runs it through a selected deep learning classifier (e.g., Pneumonia, TB, Cardiomegaly, etc.).
 3. Passes the prediction results to a Generative AI medical LLM.
 4. Returns a conversational, empathetic explanation of the findings.
 5. Maintains conversation memory for follow-up questions.
@@ -292,88 +292,52 @@ The frontend is a **single-page application** with:
 
 ---
 
-## 9. X-Ray Classification Models (Pneumonia & Tuberculosis)
+## 9. X-Ray Classification Models (Full Suite)
 
-### 9.1 Pneumonia Detection Model
+ChestGuard AI integrates seven specialized deep learning models, all built upon the **EfficientNet-B3** architecture. This architecture was chosen for its excellent balance of parameter efficiency and high accuracy in medical image classification.
 
-| Attribute | Detail |
-|---|---|
-| **Architecture** | EfficientNet-B3 (via `timm` library) |
-| **Task** | Binary classification (Normal vs. Pneumonia) |
-| **Input Size** | 224 × 224 pixels |
-| **Output** | Sigmoid probability (threshold: 0.5) |
-| **Training Data** | Kaggle Chest X-Ray Images (Pneumonia) dataset |
-| **Checkpoint** | `best_pneumonia_model.pth` |
+### 9.1 Supported Medical Models
 
-**Preprocessing Pipeline:**
+| Model Task | Architecture variant | Output Type | Preprocessing Adjustments |
+|---|---|---|---|
+| **Pneumonia** | EfficientNet-B3 (Binary) | Sigmoid | CLAHE clip=4.0, Bilateral filter d=9 |
+| **Tuberculosis (TB)** | EfficientNet-B3 (Binary) | Softmax | CLAHE clip=3.0, Bilateral filter d=9 |
+| **Pneumothorax** | EfficientNet-B3 (Binary) | Sigmoid | Custom Grayscale-to-RGB + CLAHE |
+| **Cardiomegaly** | EfficientNet-B3 (Binary) | Sigmoid | CLAHE clip=3.5, Resized to 300x300 |
+| **Emphysema** | EfficientNet-B3 (Binary) | Sigmoid | CLAHE clip=3.5 |
+| **Rib Fracture** | EfficientNet-B3 (Binary) | Sigmoid | Resized to 300x300 |
+| **Mass / Nodule** | EfficientNet-B3 (Binary) | Sigmoid | CLAHE clip=3.0-4.0, Bilateral filter d=5 |
+
+### 9.2 Core Preprocessing Pipeline
+
+Across all models, a standardized pipeline is applied to ensure the AI receives clean, high-contrast imagery:
+
+```python
+Input Image 
+  → Bilateral Filter (reduces noise, preserves boundaries) 
+  → Resize (e.g., 224×224 or 300×300)
+  → CLAHE (enhances local contrast for subtle opacities) 
+  → Normalize (ImageNet statistics) 
+  → PyTorch Tensor
 ```
-Input Image → Bilateral Filter (d=9, σ=75) → Resize (224×224)
-→ CLAHE (clip=4.0, grid=8×8) → Normalize (ImageNet stats) → Tensor
-```
 
-**Why CLAHE?** Contrast-Limited Adaptive Histogram Equalization enhances local contrast in X-ray images, making subtle opacities (indicative of pneumonia) more visible to the model.
+### 9.3 Inference Example
 
-**Why Bilateral Filtering?** Reduces noise while preserving edge information — critical for identifying lung boundary abnormalities.
+The models share a uniform prediction interface, returning standard confidence metrics to the chatbot backend:
 
-**Inference Code Flow:**
 ```python
 def predict(image_rgb):
-    filtered = cv2.bilateralFilter(image_rgb, d=9, sigmaColor=75, sigmaSpace=75)
-    tensor = tensor_from_transform(transform, filtered)
+    # Example generic inference
+    tensor = tensor_from_transform(transform, image_rgb)
     with torch.no_grad():
         prob = torch.sigmoid(model(tensor)).item()
     positive = prob >= 0.5
     return {
-        "label": "PNEUMONIA" if positive else "NORMAL",
+        "label": "DETECTED" if positive else "NORMAL",
         "confidence": prob if positive else 1 - prob,
         "scores": {"positive": prob, "negative": 1 - prob},
     }
 ```
-
-### 9.2 Tuberculosis (TB) Detection Model
-
-| Attribute | Detail |
-|---|---|
-| **Architecture** | EfficientNet-B3 (custom wrapper `TBModel`) |
-| **Task** | Binary classification (Normal vs. Tuberculosis) |
-| **Input Size** | 224 × 224 pixels |
-| **Output** | Softmax probabilities over 2 classes |
-| **Training Data** | Montgomery County & Shenzhen TB datasets |
-| **Checkpoint** | `best_tb_model.pth` |
-
-**Preprocessing Pipeline:**
-```
-Input Image → Bilateral Filter (d=9, σ=75) → Resize (224×224)
-→ CLAHE (clip=3.0, grid=8×8) → Normalize (ImageNet stats) → Tensor
-```
-
-**Key Difference from Pneumonia Model:** The TB model uses **softmax** (2-class) instead of **sigmoid** (binary), which provides explicit probability distributions for both Normal and Tuberculosis classes — useful for nuanced confidence reporting.
-
-**Inference Code Flow:**
-```python
-def predict(image_rgb):
-    filtered = cv2.bilateralFilter(image_rgb, 9, 75, 75)
-    tensor = tensor_from_transform(transform, filtered)
-    with torch.no_grad():
-        probs = torch.softmax(model(tensor), dim=1)[0]
-    prediction = int(torch.argmax(probs).item())
-    labels = {0: "NORMAL", 1: "TUBERCULOSIS"}
-    return {
-        "label": labels[prediction],
-        "confidence": float(probs[prediction].item()),
-        "scores": {"normal": float(probs[0].item()), "tuberculosis": float(probs[1].item())},
-    }
-```
-
-### 9.3 Comparison of the Two Models
-
-| Feature | Pneumonia Model | TB Model |
-|---|---|---|
-| Architecture | EfficientNet-B3 (direct) | EfficientNet-B3 (wrapped in TBModel class) |
-| Output Type | Sigmoid (1 output neuron) | Softmax (2 output neurons) |
-| CLAHE Clip Limit | 4.0 (aggressive) | 3.0 (moderate) |
-| Decision Rule | `prob >= 0.5` → Pneumonia | `argmax(probs)` → TB |
-| Confidence Reporting | `prob` or `1-prob` | `probs[predicted_class]` |
 
 ---
 
@@ -572,7 +536,7 @@ The UI follows a **premium dark-themed design** inspired by the Grok (xAI) chat 
 
 ChestGuard AI successfully demonstrates the integration of **discriminative AI** (custom deep learning classifiers) with **generative AI** (medical LLM via Ollama API) to create a domain-specific healthcare chatbot. The system:
 
-- Accurately classifies chest X-rays for Pneumonia and Tuberculosis using EfficientNet-B3 models.
+- Accurately classifies chest X-rays across a suite of 7 models (Pneumonia, TB, Pneumothorax, Cardiomegaly, Emphysema, Rib Fracture, Mass/Nodule) using EfficientNet-B3 architecture.
 - Generates medically-aware, empathetic explanations using a domain-constrained Generative AI.
 - Provides a premium, production-quality user interface accessible to non-technical users.
 - Maintains conversation memory for coherent follow-up discussions.
