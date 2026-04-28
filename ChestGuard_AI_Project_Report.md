@@ -6,7 +6,7 @@
 
 **Project Title:** ChestGuard AI — Intelligent Chest X-Ray Analysis Chatbot  
 **Domain:** Healthcare (Medical Imaging & Radiology)  
-**Application URL:** https://github.com/ashwanisuthar27/WinAI  
+**Application URL:** https://win-ai.vercel.app/  
 
 ---
 
