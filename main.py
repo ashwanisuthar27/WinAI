@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import os
+import re
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -713,7 +714,25 @@ def chat_endpoint(req: ChatRequest, x_auth: str = Header(None)):
             # First attempt: full context. Second attempt: minimal context (System + current User message)
             msgs_to_send = model_messages if attempt == 0 else [model_messages[0], model_messages[-1]]
             response = ollama.chat(model=TEXT_MODEL, messages=msgs_to_send)
-            reply = response["message"]["content"]
+            raw_reply = response["message"]["content"]
+            
+            # Clean up JSON artifacts and anomalous tokens
+            cleaned = re.sub(r'togroup\w+', '', raw_reply)
+            
+            # Extract text from {"status": "success", "output": "..."} format if present
+            match = re.search(r'"output"\s*:\s*"((?:\\.|[^"\\])*)"', cleaned)
+            if match:
+                # Unescape standard JSON escapes (like \n, \", etc)
+                reply = match.group(1).encode('utf-8').decode('unicode_escape')
+            else:
+                # Fallback: manually strip JSON wrappers
+                cleaned = re.sub(r'^{\s*"status"\s*:\s*"[^"]*",\s*"output"\s*:\s*"', '', cleaned)
+                cleaned = re.sub(r'"\s*}$', '', cleaned)
+                cleaned = re.sub(r'^```json\s*', '', cleaned)
+                cleaned = re.sub(r'\s*```$', '', cleaned)
+                reply = cleaned
+            
+            reply = reply.strip()
             break
         except Exception as exc:
             last_error = exc
