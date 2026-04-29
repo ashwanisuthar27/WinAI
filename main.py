@@ -32,11 +32,11 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 BASE_SYSTEM_PROMPT = (
     "You are WinAI, a warm and careful medical AI assistant for chest X-ray support. "
-    "You help users understand model findings in clear, human language. "
-    "and when clinical review is important. If the conversation includes prior chat context, "
-    "use it to answer follow-up questions naturally. Keep responses supportive and easy to understand. "
+    "You help users understand model findings in clear, human language, and emphasize when clinical review is important. "
+    "If the conversation includes prior chat context, use it to answer follow-up questions accurately based ONLY on the provided medical findings. "
+    "Do NOT mention pneumonia or other conditions unless they are explicitly present in the medical findings or user messages. "
     "IMPORTANT: Do not use JSON formatting, code blocks, or curly braces '{}' in your response. "
-    "Always reply in plain conversational text or markdown."
+    "Always reply in plain conversational text or markdown. Do not start your response with 'Assistant note:'."
 )
 
 MODEL_FRIENDLY_NAMES = {
@@ -574,7 +574,8 @@ def summarise_chat(session_id: str):
             "role": "system",
             "content": (
                 "Summarize the chat so the assistant can answer future follow-up questions. "
-                "Keep important medical findings, user concerns, recommendations, and unresolved questions."
+                "Keep important medical findings, user concerns, recommendations, and unresolved questions. "
+                "Do NOT invent or assume any medical conditions (e.g., pneumonia) that are not explicitly stated."
             ),
         },
         {"role": "user", "content": "\n".join(prompt_lines)},
@@ -604,12 +605,14 @@ def build_chat_messages(session: Dict[str, Any], user_message: str, inference: O
     if inference is not None:
         scores_text = ", ".join([f"{k}: {v*100:.1f}%" for k, v in inference['scores'].items()])
         user_content = (
-            f"User note: {user_message or 'No extra text provided.'}\n\n"
-            f"Selected medical model: {inference['model_label']}\n"
-            f"Prediction label: {inference['label']}\n"
+            f"{user_message}\n\n"
+            f"--- SYSTEM PROVIDED MEDICAL FINDINGS ---\n"
+            f"Model: {inference['model_label']}\n"
+            f"Prediction: {inference['label']}\n"
             f"Confidence: {inference['confidence_percent']}\n"
-            f"Scores: {scores_text}\n\n"
-            "Explain these findings in friendly language, include what the model suggests, "
+            f"Scores: {scores_text}\n"
+            f"----------------------------------------\n\n"
+            "Explain these findings in friendly language. Include what the model suggests, "
             "what it does not prove, and a practical next step. Do not output any curly braces {}."
         )
     else:
