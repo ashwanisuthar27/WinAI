@@ -1,6 +1,5 @@
 # ChestGuard AI — Project Report
 ## Domain-Specific Generative AI Chatbot Using APIs
-### INT428 — Project-Based Assessment
 
 ---
 
