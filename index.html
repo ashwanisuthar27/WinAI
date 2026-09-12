@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content, user-scalable=no">
-  <title id="app-title">ChestGuard AI</title>
-  <meta name="description" content="ChestGuard AI — Intelligent chest X-ray analysis powered by custom-trained deep learning models.">
+  <title id="app-title">WinAI</title>
+  <meta name="description" content="WinAI — Medical Imaging AI for chest X-ray analysis and brain tumor MRI classification, powered by custom-trained deep learning models.">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -53,7 +53,7 @@
 
   <!-- ══════════ PRELOADER ══════════ -->
   <div id="preloader" class="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-bg-light dark:bg-bg-dark transition-opacity duration-500">
-    <img src="/static/MYLOGO.png" alt="ChestGuard AI" class="w-16 h-16 mb-4 rounded-2xl animate-pulse">
+    <img src="/static/MYLOGO.png" alt="WinAI" class="w-16 h-16 mb-4 rounded-2xl animate-pulse">
     <div class="flex gap-1.5 mt-2">
       <div class="w-2 h-2 rounded-full bg-zinc-400 dark:bg-zinc-500 animate-[thinking_1.4s_infinite_ease-in-out_both] [animation-delay:0ms]"></div>
       <div class="w-2 h-2 rounded-full bg-zinc-400 dark:bg-zinc-500 animate-[thinking_1.4s_infinite_ease-in-out_both] [animation-delay:160ms]"></div>
@@ -66,9 +66,9 @@
     <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-[420px] shadow-2xl overflow-hidden animate-slide-up">
       <!-- Top Section -->
       <div class="p-8 pb-6 flex flex-col items-center text-center">
-        <img src="/static/MYLOGO.png" alt="ChestGuard AI" class="w-14 h-14 rounded-2xl mb-5 shadow-lg">
-        <h1 class="text-2xl font-bold tracking-tight mb-1">ChestGuard AI</h1>
-        <p class="text-sm text-zinc-500 dark:text-zinc-400">Intelligent chest X-ray analysis</p>
+        <img src="/static/MYLOGO.png" alt="WinAI" class="w-14 h-14 rounded-2xl mb-5 shadow-lg">
+        <h1 class="text-2xl font-bold tracking-tight mb-1">WinAI</h1>
+        <p class="text-sm text-zinc-500 dark:text-zinc-400">Medical Imaging AI — Chest & Brain</p>
       </div>
 
       <div class="px-8 pb-8 flex flex-col gap-3">
@@ -122,7 +122,7 @@
       <div class="flex items-center justify-between px-3 pt-3 pb-2">
         <div class="flex items-center gap-2 px-1">
           <img src="/static/MYLOGO.png" alt="Logo" class="w-8 h-8 rounded-xl">
-          <span id="sidebar-app-name" class="font-semibold text-[15px] tracking-tight">ChestGuard AI</span>
+          <span id="sidebar-app-name" class="font-semibold text-[15px] tracking-tight">WinAI</span>
         </div>
         <div class="flex items-center gap-1">
           <button id="mobile-sidebar-close"
@@ -231,10 +231,10 @@
 
         <!-- Hero / Welcome State -->
         <div id="hero-state" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-6 text-center">
-          <img src="/static/MYLOGO.png" alt="ChestGuard AI" class="w-16 h-16 rounded-2xl mb-5 opacity-90">
+          <img src="/static/MYLOGO.png" alt="WinAI" class="w-16 h-16 rounded-2xl mb-5 opacity-90">
           <h2 class="text-2xl md:text-3xl font-bold mb-2 tracking-tight">What can I help with?</h2>
           <p class="text-zinc-500 dark:text-zinc-400 text-sm max-w-sm">
-            Select a medical AI model below and start a conversation, or upload a chest X-ray for analysis.
+            Select a medical AI model below and start a conversation. Upload a chest X-ray or brain MRI for analysis.
           </p>
           <!-- Quick prompts -->
           <div class="pointer-events-auto grid grid-cols-1 sm:grid-cols-2 gap-2 mt-8 max-w-lg w-full">
@@ -243,16 +243,16 @@
               <p class="text-zinc-500 text-xs mt-0.5">Upload chest X-ray for AI analysis</p>
             </button>
             <button class="quick-prompt text-left px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
+              <span class="font-medium">Analyze my Brain MRI</span>
+              <p class="text-zinc-500 text-xs mt-0.5">Upload brain MRI for tumor classification</p>
+            </button>
+            <button class="quick-prompt text-left px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
+              <span class="font-medium">What is Glioma?</span>
+              <p class="text-zinc-500 text-xs mt-0.5">Learn about brain tumor types</p>
+            </button>
+            <button class="quick-prompt text-left px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
               <span class="font-medium">What is Pneumonia?</span>
               <p class="text-zinc-500 text-xs mt-0.5">Learn about lung conditions</p>
-            </button>
-            <button class="quick-prompt text-left px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
-              <span class="font-medium">Explain TB symptoms</span>
-              <p class="text-zinc-500 text-xs mt-0.5">Tuberculosis signs and diagnosis</p>
-            </button>
-            <button class="quick-prompt text-left px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
-              <span class="font-medium">What is Cardiomegaly?</span>
-              <p class="text-zinc-500 text-xs mt-0.5">Heart enlargement explained</p>
             </button>
           </div>
         </div>
@@ -278,7 +278,7 @@
               </div>
               <div class="flex flex-col">
                 <span id="preview-model-label" class="text-xs font-medium text-zinc-600 dark:text-zinc-300">No model selected</span>
-                <span class="text-[11px] text-zinc-400">X-ray image ready</span>
+                <span class="text-[11px] text-zinc-400">Medical image ready</span>
               </div>
             </div>
           </div>
@@ -294,9 +294,9 @@
               <div class="relative">
                 <button id="attach-btn"
                   class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  title="Upload X-ray">
+                  title="Upload Scan">
                   <span class="material-symbols-rounded text-[18px]">add_photo_alternate</span>
-                  <span class="hidden sm:inline">Upload X-ray</span>
+                  <span class="hidden sm:inline">Upload Scan</span>
                 </button>
                 <input id="img-input" type="file" accept="image/*" class="hidden">
               </div>
@@ -318,7 +318,7 @@
                   <div class="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 flex-shrink-0 flex items-center gap-2">
                     <span class="material-symbols-rounded text-[18px] text-teal-500">health_and_safety</span>
                     <div>
-                      <h3 class="font-semibold text-sm leading-tight">ChestGuard Models</h3>
+                      <h3 class="font-semibold text-sm leading-tight">WinAI Models</h3>
                       <p class="text-[11px] text-zinc-400 leading-tight">Select a diagnostic AI model</p>
                     </div>
                   </div>
@@ -340,7 +340,7 @@
 
             <!-- Text Textarea -->
             <div class="px-4 py-2">
-              <textarea id="msg-input" placeholder="Ask anything or upload a chest X-ray..." rows="1"
+              <textarea id="msg-input" placeholder="Ask anything or upload a medical scan..." rows="1"
                 class="w-full bg-transparent border-none outline-none resize-none text-sm leading-relaxed text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 max-h-40 sidebar-scrollbar">
               </textarea>
             </div>
@@ -365,7 +365,7 @@
           </div>
 
           <p class="text-center text-[11px] text-zinc-400 dark:text-zinc-600 mt-2">
-            ChestGuard AI can make mistakes. For clinical use, consult a medical professional.
+            WinAI can make mistakes. For clinical use, consult a medical professional.
           </p>
         </div>
       </div>
@@ -438,7 +438,7 @@
               <span class="material-symbols-rounded text-[20px] text-zinc-400">edit</span>
               <div>
                 <p class="text-sm font-medium">App Name</p>
-                <p class="text-xs text-zinc-400">Currently: <span id="app-name-display">ChestGuard AI</span></p>
+                <p class="text-xs text-zinc-400">Currently: <span id="app-name-display">WinAI</span></p>
               </div>
             </div>
             <span class="material-symbols-rounded text-[18px] text-zinc-400">chevron_right</span>
@@ -468,15 +468,15 @@
         <p class="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600 px-1 mb-3">About</p>
         <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5">
           <div class="flex items-center gap-3 mb-3">
-            <img src="/static/MYLOGO.png" alt="ChestGuard AI" class="w-10 h-10 rounded-xl">
+            <img src="/static/MYLOGO.png" alt="WinAI" class="w-10 h-10 rounded-xl">
             <div>
-              <p class="font-semibold text-sm">ChestGuard AI</p>
-              <p class="text-xs text-zinc-400">Version 2.0.0</p>
+              <p class="font-semibold text-sm">WinAI</p>
+              <p class="text-xs text-zinc-400">Version 3.0.0</p>
             </div>
           </div>
           <p class="text-xs text-zinc-400 leading-relaxed">
-            Powered by custom-trained EfficientNet-B3 deep learning models for chest X-ray analysis,
-            integrated with Ollama LLM for medical explanation generation.
+            Medical Imaging AI powered by custom-trained deep learning models for chest X-ray analysis
+            and brain tumor MRI classification, integrated with Ollama LLM for medical explanation generation.
           </p>
         </div>
       </div>
@@ -505,7 +505,7 @@
   <div id="name-modal" class="fixed inset-0 z-[160] hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-slide-up">
       <h3 class="font-bold text-lg mb-4">Change App Name</h3>
-      <input id="name-input" type="text" placeholder="ChestGuard AI"
+      <input id="name-input" type="text" placeholder="WinAI"
         class="w-full px-4 py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-transparent focus:border-accent outline-none text-sm mb-4 transition-colors">
       <div class="flex gap-2 justify-end">
         <button id="name-cancel-btn"

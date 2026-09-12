@@ -1,16 +1,37 @@
-# AI Chatbot - Local Setup
+# 🏥 WinAI — Medical Imaging AI
 
-A local AI chatbot application using Ollama models (llama3 for text, llava for images).
+A medical imaging AI assistant powered by custom-trained deep learning models for **Chest X-ray Analysis** and **Brain Tumor MRI Classification**, integrated with Ollama LLM for natural language explanations.
+
+## ✨ Features
+
+- 🫁 **Chest X-ray Analysis** — 7 specialized models:
+  - Pneumonia Detection
+  - Tuberculosis (TB) Screening
+  - Pneumothorax Detection
+  - Cardiomegaly (Heart Enlargement)
+  - Emphysema Detection
+  - Mass / Nodule (Lung Cancer proxy)
+  - Rib Fracture Detection
+
+- 🧠 **Brain Tumor MRI Classification** — EfficientNetV2B3 model:
+  - Glioma
+  - Meningioma
+  - Pituitary Tumor
+  - No Tumor
+
+- 💬 **AI Chat Assistant** — Explains findings in clear, human language using Ollama LLM
+- 🔐 **Firebase Authentication** — User accounts with login/signup
+- 🌙 **Dark/Light Theme** — Modern, responsive UI
+- 💾 **Chat History** — Persistent conversations via Firebase
 
 ## Prerequisites
 
-1. **Python 3.8+** installed on your computer
+1. **Python 3.8+** installed
 2. **Ollama** installed and running locally
    - Download from: https://ollama.ai
-   - After installation, pull the required models:
+   - Pull a model:
      ```bash
      ollama pull llama3
-     ollama pull llava
      ```
 
 ## Installation
@@ -20,66 +41,59 @@ A local AI chatbot application using Ollama models (llama3 for text, llava for i
    pip install -r requirements.txt
    ```
 
+2. **Download Brain Tumor Models** (not included due to size > 100MB):
+   - Place the following files in `models/BrainTumor/`:
+     - `best_brain_tumor_model.keras` (~180 MB)
+   - The `class_names.json` file is already included in the repository.
+   - Train your own model or download from [Kaggle](https://www.kaggle.com/code/ashwanidhukra/brain-tumor-mri-classification-using-transfer-lear)
+
 ## Running the Application
 
-1. Make sure Ollama is running on your computer (it should start automatically)
+1. Make sure Ollama is running
 
 2. Start the FastAPI server:
    ```bash
    python main.py
    ```
 
-3. Open your web browser and navigate to:
+3. Open your browser at:
    ```
-   http://localhost:8000
+   http://localhost:8080
    ```
 
-## Features
+## 🧠 Models
 
-- 💬 Text chat using llama3 model
-- 🖼️ Image analysis using llava model
-- 💾 Conversation history stored in browser localStorage
-- 🎨 Modern, responsive UI
+### Chest X-ray Models (PyTorch / EfficientNet-B3)
+All chest X-ray models use EfficientNet-B3 architecture trained on medical imaging datasets.
+Model weights (`.pth` files) are in the `models/` directory.
+
+### Brain Tumor Model (TensorFlow / EfficientNetV2B3)
+- **Architecture:** EfficientNetV2B3 with fine-tuning
+- **Input Size:** 300×300 RGB
+- **Classes:** Glioma, Meningioma, Pituitary, No Tumor
+- **Framework:** TensorFlow/Keras
+- **Model file:** `models/BrainTumor/best_brain_tumor_model.keras`
+
+## Tech Stack
+
+- **Backend:** FastAPI + Uvicorn
+- **AI Models:** PyTorch (chest), TensorFlow/Keras (brain)
+- **LLM:** Ollama (llama3)
+- **Frontend:** HTML + Tailwind CSS + Vanilla JS
+- **Auth & Storage:** Firebase Realtime Database
+- **Image Processing:** OpenCV, Albumentations, PIL
 
 ## Troubleshooting
 
-### "Model 'llama3' not found" Error
+- **"Model failed" error**: Make sure Ollama is running and models are pulled
+- **Brain Tumor model not loading**: Ensure `best_brain_tumor_model.keras` is in `models/BrainTumor/`
+- **TensorFlow import error**: Run `pip install tensorflow`
+- **Cannot connect to Ollama**: Ensure Ollama service is running
 
-If you see this error, you need to install the Ollama models:
+## 👨‍💻 Author
 
-**Windows:**
-```bash
-# Run the installer script
-install_models.bat
+**Ashwani Suthar**
 
-# Or manually:
-ollama pull llama3
-ollama pull llava
-```
+## 📜 License
 
-**Linux/Mac:**
-```bash
-# Make script executable and run
-chmod +x install_models.sh
-./install_models.sh
-
-# Or manually:
-ollama pull llama3
-ollama pull llava
-```
-
-### Other Common Issues
-
-- **"Model failed" error**: Make sure Ollama is running and you have pulled the models
-- **"Cannot connect to Ollama"**: 
-  - Make sure Ollama is installed from https://ollama.ai
-  - On Windows, ensure Ollama service is running
-  - Try restarting Ollama
-- **Connection refused**: Ensure the server is running on port 8000 and no other application is using that port
-- **Static files not loading**: Make sure you're accessing the app via `http://localhost:8000` (not `file://`)
-
-## Notes
-
-- The application runs entirely on your local machine
-- No internet connection required after initial setup
-- All data stays on your computer
+This project is developed for educational and research purposes.

@@ -10,3 +10,4 @@ albumentations
 timm
 torch
 ollama
+tensorflow

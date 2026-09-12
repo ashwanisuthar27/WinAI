@@ -8,3 +8,19 @@ venv/
 env/
 .venv
 *.log
+
+# Large model files (Brain Tumor models > 100MB)
+models/BrainTumor/*.keras
+models/BrainTumor/*.h5
+
+# Ngrok binaries
+ngrok.exe
+.ngrok.exe.old
+
+# Server output files
+server.out
+server.err
+error.txt
+
+# Environment
+.env

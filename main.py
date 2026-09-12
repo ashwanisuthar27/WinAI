@@ -31,10 +31,12 @@ MODELS_DIR = Path("models")
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 BASE_SYSTEM_PROMPT = (
-    "You are WinAI, a warm and careful medical AI assistant for chest X-ray support. "
+    "You are WinAI, a warm and careful medical AI assistant for medical imaging support. "
+    "You specialize in chest X-ray analysis (pneumonia, TB, cardiomegaly, emphysema, pneumothorax, rib fractures, mass/nodules) "
+    "and brain tumor MRI classification (glioma, meningioma, pituitary tumor, no tumor). "
     "You help users understand model findings in clear, human language, and emphasize when clinical review is important. "
     "If the conversation includes prior chat context, use it to answer follow-up questions accurately based ONLY on the provided medical findings. "
-    "Do NOT mention pneumonia or other conditions unless they are explicitly present in the medical findings or user messages. "
+    "Do NOT mention conditions unless they are explicitly present in the medical findings or user messages. "
     "IMPORTANT: Do not use JSON formatting, code blocks, or curly braces '{}' in your response. "
     "Always reply in plain conversational text or markdown. Do not start your response with 'Assistant note:'."
 )
@@ -47,6 +49,7 @@ MODEL_FRIENDLY_NAMES = {
     "emphysema": "Emphysema",
     "mass_nodule": "Mass / Nodule (Lung Cancer proxy)",
     "rib_fracture": "Rib Fracture",
+    "brain_tumor": "Brain Tumor (MRI)",
 }
 
 
@@ -412,6 +415,72 @@ def load_mass_nodule_model() -> Dict[str, Any]:
     return {"model": model, "predict": predict}
 
 
+def load_brain_tumor_model() -> Dict[str, Any]:
+    """Load EfficientNetV2B3 Keras model for 4-class brain tumor MRI classification."""
+    import json as _json
+    try:
+        import tensorflow as tf
+    except ImportError:
+        raise RuntimeError(
+            "TensorFlow is required for the Brain Tumor model. "
+            "Install it with: pip install tensorflow"
+        )
+
+    model_path = MODELS_DIR / "BrainTumor" / "best_brain_tumor_model.keras"
+    class_names_path = MODELS_DIR / "BrainTumor" / "class_names.json"
+
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Brain tumor model not found at {model_path}. "
+            "Download the model file (best_brain_tumor_model.keras) and place it in models/BrainTumor/"
+        )
+
+    keras_model = tf.keras.models.load_model(str(model_path))
+
+    # Load class names
+    if class_names_path.exists():
+        with open(class_names_path, "r") as f:
+            class_names = _json.load(f)
+    else:
+        class_names = ["glioma", "meningioma", "notumor", "pituitary"]
+
+    FRIENDLY_CLASS_NAMES = {
+        "glioma": "Glioma",
+        "meningioma": "Meningioma",
+        "notumor": "No Tumor",
+        "pituitary": "Pituitary Tumor",
+    }
+
+    IMG_SIZE = 300
+
+    def predict(image_rgb: np.ndarray) -> Dict[str, Any]:
+        # Resize and normalize to [0, 1]
+        img = cv2.resize(image_rgb, (IMG_SIZE, IMG_SIZE))
+        img = img.astype(np.float32) / 255.0
+        img = np.expand_dims(img, axis=0)  # (1, 300, 300, 3)
+
+        preds = keras_model.predict(img, verbose=0)[0]  # softmax probabilities
+        predicted_idx = int(np.argmax(preds))
+        predicted_class = class_names[predicted_idx]
+        confidence = float(preds[predicted_idx])
+
+        friendly_label = FRIENDLY_CLASS_NAMES.get(predicted_class, predicted_class.title())
+        is_positive = predicted_class != "notumor"
+
+        scores = {}
+        for i, name in enumerate(class_names):
+            friendly = FRIENDLY_CLASS_NAMES.get(name, name.title())
+            scores[friendly.lower().replace(" ", "_")] = float(preds[i])
+
+        return {
+            "label": friendly_label.upper() if is_positive else "NO TUMOR DETECTED",
+            "confidence": confidence,
+            "scores": scores,
+        }
+
+    return {"model": keras_model, "predict": predict}
+
+
 def get_model_blueprints() -> List[Dict[str, Any]]:
     return [
         {
@@ -455,6 +524,12 @@ def get_model_blueprints() -> List[Dict[str, Any]]:
             "label": MODEL_FRIENDLY_NAMES["rib_fracture"],
             "task": "Rib fracture screening",
             "loader": load_rib_fracture_model,
+        },
+        {
+            "id": "brain_tumor",
+            "label": MODEL_FRIENDLY_NAMES["brain_tumor"],
+            "task": "Brain tumor MRI classification (4 classes)",
+            "loader": load_brain_tumor_model,
         },
     ]
 

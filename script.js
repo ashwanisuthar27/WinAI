@@ -1,7 +1,7 @@
-// ═══════════════════════════════════════════════════════════════
-// ChestGuard AI — script.js
+// ═════════════════════════════════════════════════════════════════
+// WinAI — script.js
 // Full Grok-style UI with Firebase auth, medical model integration
-// ═══════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, set, get, child, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -51,6 +51,7 @@ const MODEL_ICONS = {
   emphysema: { icon: "cloud", color: "#8b5cf6", bg: "rgba(139,92,246,0.12)" },
   mass_nodule: { icon: "bubble_chart", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
   rib_fracture: { icon: "accessibility_new", color: "#14b8a6", bg: "rgba(20,184,166,0.12)" },
+  brain_tumor: { icon: "neurology", color: "#a855f7", bg: "rgba(168,85,247,0.12)" },
 };
 
 function getModelMeta(modelId) {
@@ -308,7 +309,7 @@ function completeLogin(username, guestMode) {
 }
 
 function logout() {
-  openModal("Sign out?", "Do you want to sign out from ChestGuard AI?", () => {
+  openModal("Sign out?", "Do you want to sign out from WinAI?", () => {
     currentUser = null; isGuest = false; currentSessionId = null;
     selectedImageB64 = null; selectedModelId = null;
     chatSessions = {}; messageCache = {}; fbLoadedOnce = false;
@@ -394,7 +395,7 @@ function initTheme() {
 // APP NAME
 // ════════════════════════════════════════════════════
 function setAppName(name) {
-  const n = name.trim() || "ChestGuard AI";
+  const n = name.trim() || "WinAI";
   document.title = n;
   const titleEl = $("app-title"); if (titleEl) titleEl.textContent = n;
   if (els.appNameDisplay) els.appNameDisplay.textContent = n;
@@ -403,7 +404,7 @@ function setAppName(name) {
 }
 function openNameModal() {
   if (!els.nameModal) return;
-  if (els.nameInput) els.nameInput.value = localStorage.getItem("app_name") || "ChestGuard AI";
+  if (els.nameInput) els.nameInput.value = localStorage.getItem("app_name") || "WinAI";
   els.nameModal.classList.remove("hidden");
   els.nameInput?.focus();
 }
@@ -916,7 +917,7 @@ async function sendMessage(e) {
   if (!text && !hasImage) return;
 
   if (hasImage && !selectedModelId) {
-    openModal("Select a Model", "Please select one of the medical AI models before uploading a chest X-ray for analysis.");
+    openModal("Select a Model", "Please select one of the medical AI models before uploading a scan for analysis.");
     return;
   }
 
@@ -928,7 +929,7 @@ async function sendMessage(e) {
   // Build user message
   const userMsg = {
     role: "user",
-    content: text || (imageToSend ? "Please analyze this chest X-ray." : ""),
+    content: text || (imageToSend ? "Please analyze this medical scan." : ""),
     image: imageToSend,
     timestamp: Date.now(),
   };
