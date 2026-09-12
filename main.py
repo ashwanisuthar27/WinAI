@@ -416,8 +416,18 @@ def load_mass_nodule_model() -> Dict[str, Any]:
 
 
 def load_brain_tumor_model() -> Dict[str, Any]:
-    """Load EfficientNetV2B3 Keras model for 4-class brain tumor MRI classification."""
+    """Load EfficientNetV2B3 Keras model for 4-class brain tumor MRI classification.
+
+    The model was trained with Keras 3.x using mixed_float16 precision and may
+    contain layer configs (e.g. `quantization_config`) not recognised by older
+    TensorFlow builds.  Three loading strategies are attempted in order:
+
+    1. Patch problematic layer kwargs and load the `.keras` checkpoint.
+    2. Fall back to the legacy `.h5` checkpoint.
+    3. Reconstruct the architecture manually and load weights from `.h5`.
+    """
     import json as _json
+
     try:
         import tensorflow as tf
     except ImportError:
@@ -426,18 +436,111 @@ def load_brain_tumor_model() -> Dict[str, Any]:
             "Install it with: pip install tensorflow"
         )
 
-    model_path = MODELS_DIR / "BrainTumor" / "best_brain_tumor_model.keras"
+    keras_path = MODELS_DIR / "BrainTumor" / "best_brain_tumor_model.keras"
+    h5_path = MODELS_DIR / "BrainTumor" / "BrainTumor_EfficientNetV2B3.h5"
     class_names_path = MODELS_DIR / "BrainTumor" / "class_names.json"
 
-    if not model_path.exists():
+    if not keras_path.exists() and not h5_path.exists():
         raise FileNotFoundError(
-            f"Brain tumor model not found at {model_path}. "
-            "Download the model file (best_brain_tumor_model.keras) and place it in models/BrainTumor/"
+            "Brain tumor model not found. Place at least one of these files "
+            "in models/BrainTumor/:\n"
+            "  • best_brain_tumor_model.keras\n"
+            "  • BrainTumor_EfficientNetV2B3.h5"
         )
 
-    keras_model = tf.keras.models.load_model(str(model_path))
+    # ── helpers ────────────────────────────────────────────────────
+    _STRIP_KWARGS = {"quantization_config"}  # added in newer Keras
 
-    # Load class names
+    def _patch_config(config: dict) -> dict:
+        """Recursively strip unsupported kwargs from a Keras config dict."""
+        if isinstance(config, dict):
+            config = {k: _patch_config(v) for k, v in config.items()
+                      if k not in _STRIP_KWARGS}
+        elif isinstance(config, list):
+            config = [_patch_config(v) for v in config]
+        return config
+
+    # Subclass Dense (and any other layers) to silently accept extra kwargs
+    _OrigDense = tf.keras.layers.Dense
+
+    class _CompatDense(_OrigDense):
+        def __init__(self, *args, quantization_config=None, **kwargs):
+            super().__init__(*args, **kwargs)
+
+        @classmethod
+        def from_config(cls, config):
+            config.pop("quantization_config", None)
+            return super().from_config(config)
+
+    keras_model = None
+    saved_policy = tf.keras.mixed_precision.global_policy().name
+
+    # ── Strategy 1: load .keras with patched layers ────────────────
+    if keras_path.exists():
+        try:
+            tf.keras.mixed_precision.set_global_policy("mixed_float16")
+            keras_model = tf.keras.models.load_model(
+                str(keras_path),
+                compile=False,
+                custom_objects={"Dense": _CompatDense},
+            )
+            print("Brain tumor model loaded (.keras with patch)")
+        except Exception as exc:
+            print(f"Strategy 1 (.keras patch) failed: {exc}")
+            keras_model = None
+            tf.keras.mixed_precision.set_global_policy(saved_policy)
+
+    # ── Strategy 2: load .h5 directly ──────────────────────────────
+    if keras_model is None and h5_path.exists():
+        try:
+            tf.keras.mixed_precision.set_global_policy("mixed_float16")
+            keras_model = tf.keras.models.load_model(
+                str(h5_path), compile=False
+            )
+            print("Brain tumor model loaded (.h5)")
+        except Exception as exc:
+            print(f"Strategy 2 (.h5 direct) failed: {exc}")
+            keras_model = None
+            tf.keras.mixed_precision.set_global_policy(saved_policy)
+
+    # ── Strategy 3: rebuild architecture + load weights from .h5 ───
+    if keras_model is None and h5_path.exists():
+        try:
+            tf.keras.mixed_precision.set_global_policy("float32")
+            inputs = tf.keras.Input(shape=(300, 300, 3))
+            base = tf.keras.applications.EfficientNetV2B3(
+                include_top=False,
+                weights=None,
+                input_shape=(300, 300, 3),
+                pooling="avg",
+            )(inputs)
+            x = tf.keras.layers.BatchNormalization()(base)
+            x = tf.keras.layers.Dense(
+                512, activation="relu",
+                kernel_initializer="he_normal",
+            )(x)
+            x = tf.keras.layers.Dropout(0.5)(x)
+            outputs = tf.keras.layers.Dense(4, activation="softmax")(x)
+            keras_model = tf.keras.Model(inputs, outputs)
+            keras_model.load_weights(str(h5_path))
+            print("Brain tumor model loaded (rebuilt + .h5 weights)")
+        except Exception as exc:
+            print(f"Strategy 3 (rebuild + weights) failed: {exc}")
+            keras_model = None
+
+    # Reset global policy back for the rest of the app
+    try:
+        tf.keras.mixed_precision.set_global_policy("float32")
+    except Exception:
+        pass
+
+    if keras_model is None:
+        raise RuntimeError(
+            "Could not load Brain Tumor model with any strategy. "
+            "Try upgrading TensorFlow: pip install --upgrade tensorflow"
+        )
+
+    # ── class names ────────────────────────────────────────────────
     if class_names_path.exists():
         with open(class_names_path, "r") as f:
             class_names = _json.load(f)
@@ -454,12 +557,11 @@ def load_brain_tumor_model() -> Dict[str, Any]:
     IMG_SIZE = 300
 
     def predict(image_rgb: np.ndarray) -> Dict[str, Any]:
-        # Resize and normalize to [0, 1]
         img = cv2.resize(image_rgb, (IMG_SIZE, IMG_SIZE))
         img = img.astype(np.float32) / 255.0
         img = np.expand_dims(img, axis=0)  # (1, 300, 300, 3)
 
-        preds = keras_model.predict(img, verbose=0)[0]  # softmax probabilities
+        preds = keras_model.predict(img, verbose=0)[0]
         predicted_idx = int(np.argmax(preds))
         predicted_class = class_names[predicted_idx]
         confidence = float(preds[predicted_idx])

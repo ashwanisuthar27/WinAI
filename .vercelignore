@@ -1,0 +1,24 @@
+# Python backend (runs locally, not on Vercel)
+main.py
+requirements.txt
+models/
+__pycache__/
+*.py
+*.pth
+*.keras
+*.h5
+
+# Other files not needed on Vercel
+.env
+ngrok.exe
+.ngrok.exe.old
+server.out
+server.err
+error.txt
+chat_history.json
+install_models.bat
+install_models.sh
+*.ipynb
+
+# Reports/docs
+WinAI_Project_Report.md
